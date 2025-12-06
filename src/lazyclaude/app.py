@@ -95,6 +95,7 @@ class LazyClaude(App):
 
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
+        self.theme = "gruvbox"
         self._load_customizations()
         self._update_status_panel()
         if self._panels:
