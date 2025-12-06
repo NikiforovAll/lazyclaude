@@ -1,6 +1,6 @@
-# LazyClaude Development Guidelines
+# CLAUDE.md
 
-Auto-generated from feature plans. Last updated: 2025-12-06
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -33,11 +33,13 @@ tests/
 ## Commands
 
 ```bash
-uv sync                  # Install dependencies
-uv run lazyclaude        # Run application
-uv run pytest            # Run tests
-uv run ruff check src    # Lint code
-uv run ruff format src   # Format code
+uv sync                              # Install dependencies
+uv run lazyclaude                    # Run application
+uv run pytest                        # Run all tests
+uv run pytest tests/unit/test_X.py  # Run single test file
+uv run pytest -k "test_name"         # Run tests matching pattern
+uv run ruff check src                # Lint code
+uv run ruff format src               # Format code
 ```
 
 ## Code Style
@@ -71,9 +73,22 @@ All code MUST comply with these principles (see `.specify/memory/constitution.md
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
 
-## Recent Changes
+## Architecture
 
-- 001-customization-viewer: Initial feature planning complete
+```
+User Input → App (app.py) → TypePanel widgets → SelectionChanged message
+                ↓                                        ↓
+         ConfigDiscoveryService                   MainPane updates
+                ↓
+         Parsers (slash_command, subagent, skill, memory_file, mcp)
+                ↓
+         Customization models
+```
 
-<!-- MANUAL ADDITIONS START -->
-<!-- MANUAL ADDITIONS END -->
+**Data Flow**:
+1. `ConfigDiscoveryService` discovers files from `~/.claude` (user) and `./.claude` (project)
+2. Type-specific parsers extract frontmatter metadata and content
+3. `Customization` objects are created and passed to `TypePanel` widgets
+4. Selection changes emit messages handled by `App` to update `MainPane`
+
+**Theme Sync**: App theme (Textual) maps to syntax highlighting theme (Pygments) via `TEXTUAL_TO_PYGMENTS_THEME` in `detail_pane.py`.
