@@ -38,6 +38,7 @@
 | III. Contextual Navigation | Does Enter drill down and Esc go back? Is navigation hierarchical? | [ ] Pass |
 | IV. Modal Minimalism | Are modals used only for complex/destructive operations? | [ ] Pass |
 | V. Textual Framework Integration | Are all components Textual widgets? Is CSS-based styling used? | [ ] Pass |
+| VI. UV Packaging | Is uv used for package management? Is uvx execution supported? | [ ] Pass |
 
 **UI/UX Constraints**:
 - [ ] Panels have visible borders

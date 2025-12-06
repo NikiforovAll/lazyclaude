@@ -2,25 +2,17 @@
   ============================================================================
   SYNC IMPACT REPORT
   ============================================================================
-  Version Change: 0.0.0 → 1.0.0 (MAJOR - initial constitution)
+  Version Change: 1.0.0 → 1.1.0 (MINOR - new principle added)
 
-  Modified Principles: N/A (initial creation)
+  Modified Principles: None
 
   Added Sections:
-    - Core Principles (5 principles):
-      I. Keyboard-First Ergonomics
-      II. Lazygit-Inspired Panel Layout
-      III. Contextual Navigation
-      IV. Modal Minimalism
-      V. Textual Framework Integration
-    - UI/UX Constraints
-    - Development Workflow
-    - Governance
+    - VI. UV Packaging (new core principle for uv/uvx distribution)
 
-  Removed Sections: N/A (initial creation)
+  Removed Sections: None
 
   Templates Requiring Updates:
-    - .specify/templates/plan-template.md: ✅ updated (added Constitution Check gates)
+    - .specify/templates/plan-template.md: ✅ updated (added VI. UV Packaging to Constitution Check)
     - .specify/templates/spec-template.md: ✅ no changes required
     - .specify/templates/tasks-template.md: ✅ no changes required
     - .specify/templates/checklist-template.md: ✅ no changes required
@@ -121,6 +113,25 @@ CSS-based styling, and testing infrastructure.
 **Rationale**: Textual provides a mature foundation for building complex TUIs with
 proper testing support. Fighting the framework leads to maintenance burden.
 
+### VI. UV Packaging
+
+The application MUST use uv as the package manager and build tool, with distribution
+via uvx for zero-install execution.
+
+**Non-Negotiable Rules**:
+
+- Project MUST use `pyproject.toml` with uv-compatible configuration
+- Dependencies MUST be managed via `uv add` / `uv remove`
+- Lock file (`uv.lock`) MUST be committed to version control
+- Application MUST be installable and runnable via `uvx lazyclaude`
+- Package MUST be published to PyPI for uvx discovery
+- Development environment MUST use `uv sync` for reproducible setup
+- Scripts and entry points MUST be defined in `pyproject.toml` `[project.scripts]`
+
+**Rationale**: UV provides fast, reliable Python package management with built-in
+virtual environment handling. UVX enables users to run lazyclaude instantly without
+explicit installation, matching the frictionless experience expected from CLI tools.
+
 ## UI/UX Constraints
 
 **Visual Design**:
@@ -174,9 +185,10 @@ proper testing support. Fighting the framework leads to maintenance burden.
 **Quality Gates**:
 
 - Type hints required for all public functions
-- Linting via ruff or flake8
-- Formatting via black or ruff format
+- Linting via ruff
+- Formatting via ruff format
 - Pre-commit hooks enforced
+- `uv run pytest` for test execution
 
 ## Governance
 
@@ -205,4 +217,4 @@ these principles.
 - UI changes MUST demonstrate keyboard-only operation
 - New features MUST document their keybindings
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-06 | **Last Amended**: 2025-12-06
+**Version**: 1.1.0 | **Ratified**: 2025-12-06 | **Last Amended**: 2025-12-06
