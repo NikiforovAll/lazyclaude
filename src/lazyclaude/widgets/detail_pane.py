@@ -1,6 +1,8 @@
 """MainPane widget for displaying customization details."""
 
-from rich.console import RenderableType
+import re
+
+from rich.console import Group, RenderableType
 from rich.syntax import Syntax
 from textual.binding import Binding
 from textual.reactive import reactive
@@ -107,6 +109,29 @@ class MainPane(Widget):
         app_theme = self.app.theme or "textual-dark"
         return TEXTUAL_TO_PYGMENTS_THEME.get(app_theme, DEFAULT_SYNTAX_THEME)
 
+    def _extract_frontmatter_text(self, content: str) -> tuple[str | None, str]:
+        """Extract raw frontmatter text and body from markdown content."""
+        pattern = r"^---\s*\n(.*?)\n---\s*\n(.*)$"
+        match = re.match(pattern, content, re.DOTALL)
+        if match:
+            return match.group(1), match.group(2)
+        return None, content
+
+    def _render_markdown_with_frontmatter(self, content: str) -> RenderableType:
+        """Render markdown with separate frontmatter highlighting."""
+        theme = self._get_syntax_theme()
+        frontmatter_text, body = self._extract_frontmatter_text(content)
+
+        if frontmatter_text:
+            parts: list[RenderableType] = [
+                Syntax(frontmatter_text, "yaml", theme=theme, word_wrap=True),
+                "",
+                Syntax(body, "markdown", theme=theme, word_wrap=True),
+            ]
+            return Group(*parts)
+
+        return Syntax(content, "markdown", theme=theme, word_wrap=True)
+
     def _render_file_content(self) -> RenderableType:
         """Render file content view with syntax highlighting."""
         if not self.customization:
@@ -117,8 +142,11 @@ class MainPane(Widget):
         if not content:
             return "[dim italic]Empty[/]"
 
-        lexer_map = {".md": "markdown", ".json": "json"}
         suffix = self.customization.path.suffix.lower()
+        if suffix == ".md":
+            return self._render_markdown_with_frontmatter(content)
+
+        lexer_map = {".json": "json"}
         lexer = lexer_map.get(suffix, "text")
 
         return Syntax(content, lexer, theme=self._get_syntax_theme(), line_numbers=True, word_wrap=True)
@@ -126,6 +154,7 @@ class MainPane(Widget):
     def on_mount(self) -> None:
         """Handle mount event."""
         self._update_title()
+        self.border_subtitle = self._render_footer()
         self.watch(self.app, "theme", self._on_theme_changed)
 
     def _on_theme_changed(self) -> None:
@@ -141,6 +170,12 @@ class MainPane(Widget):
             tabs = f"Content - [bold {accent}]Metadata[/]"
         self.border_title = f"[0]-{tabs}-"
 
+    def _render_footer(self) -> str:
+        """Render the panel footer with file path."""
+        if not self.customization:
+            return ""
+        return str(self.customization.path)
+
     def watch_view_mode(self, mode: str) -> None:  # noqa: ARG002
         """React to view mode changes."""
         self._update_title()
@@ -150,6 +185,7 @@ class MainPane(Widget):
         self, customization: Customization | None  # noqa: ARG002
     ) -> None:
         """React to customization changes."""
+        self.border_subtitle = self._render_footer()
         self._refresh_display()
 
     def _refresh_display(self) -> None:
