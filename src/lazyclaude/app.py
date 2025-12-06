@@ -1,5 +1,7 @@
 """Main LazyClaude TUI Application."""
 
+import os
+import subprocess
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -29,6 +31,7 @@ class LazyClaude(App):
         Binding("q", "quit", "Quit"),
         Binding("?", "toggle_help", "Help"),
         Binding("R", "refresh", "Refresh", key_display="shift+r"),
+        Binding("e", "open_in_editor", "Edit"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
         Binding("escape", "back", "Back", show=False),
@@ -163,6 +166,18 @@ class LazyClaude(App):
         """Refresh customizations from disk."""
         self._customizations = self._discovery_service.refresh()
         self._update_panels()
+
+    def action_open_in_editor(self) -> None:
+        """Open the selected customization file in $EDITOR."""
+        if not self._main_pane or not self._main_pane.customization:
+            return
+
+        file_path = self._main_pane.customization.path
+        if not file_path.exists():
+            return
+
+        editor = os.environ.get("EDITOR", "vi")
+        subprocess.Popen([editor, str(file_path)], shell=True)
 
     def action_back(self) -> None:
         """Go back - return focus to panel from main pane."""
@@ -334,6 +349,7 @@ class LazyClaude(App):
   p              Show project-level only
 
 [bold]Actions[/]
+  e              Open in $EDITOR
   R              Refresh from disk
   ?              Toggle this help
   q              Quit
