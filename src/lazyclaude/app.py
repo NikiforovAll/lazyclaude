@@ -16,6 +16,7 @@ from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.widgets.detail_pane import DetailPane
 from lazyclaude.widgets.filter_input import FilterInput
+from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
 
 
@@ -31,10 +32,15 @@ class LazyClaude(App):
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
         Binding("escape", "back", "Back", show=False),
-        Binding("1", "filter_all", "All"),
-        Binding("2", "filter_user", "User"),
-        Binding("3", "filter_project", "Project"),
+        Binding("a", "filter_all", "All"),
+        Binding("u", "filter_user", "User"),
+        Binding("p", "filter_project", "Project"),
         Binding("/", "search", "Search"),
+        Binding("1", "focus_panel_1", "Panel 1", show=False),
+        Binding("2", "focus_panel_2", "Panel 2", show=False),
+        Binding("3", "focus_panel_3", "Panel 3", show=False),
+        Binding("4", "focus_panel_4", "Panel 4", show=False),
+        Binding("5", "focus_panel_5", "Panel 5", show=False),
     ]
 
     TITLE = "LazyClaude"
@@ -48,6 +54,8 @@ class LazyClaude(App):
     ) -> None:
         """Initialize LazyClaude application."""
         super().__init__()
+        self._user_config_path = user_config_path
+        self._project_config_path = project_config_path
         self._discovery_service = discovery_service or ConfigDiscoveryService(
             user_config_path=user_config_path,
             project_config_path=project_config_path,
@@ -57,6 +65,7 @@ class LazyClaude(App):
         self._level_filter: ConfigLevel | None = None
         self._search_query: str = ""
         self._panels: list[TypePanel] = []
+        self._status_panel: StatusPanel | None = None
         self._detail_pane: DetailPane | None = None
         self._filter_input: FilterInput | None = None
         self._help_visible = False
@@ -64,8 +73,12 @@ class LazyClaude(App):
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
         with Container(id="sidebar"):
-            for ctype in CustomizationType:
+            self._status_panel = StatusPanel(id="status-panel")
+            yield self._status_panel
+
+            for i, ctype in enumerate(CustomizationType, start=1):
                 panel = TypePanel(ctype, id=f"panel-{ctype.name.lower()}")
+                panel.panel_number = i
                 self._panels.append(panel)
                 yield panel
 
@@ -80,8 +93,16 @@ class LazyClaude(App):
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
         self._load_customizations()
+        self._update_status_panel()
         if self._panels:
             self._panels[0].focus()
+
+    def _update_status_panel(self) -> None:
+        """Update status panel with current config path and filter level."""
+        if self._status_panel:
+            project_name = self._discovery_service.project_root.name
+            self._status_panel.config_path = project_name
+            self._status_panel.filter_level = "All"
 
     def _load_customizations(self) -> None:
         """Load customizations from discovery service."""
@@ -178,23 +199,63 @@ class LazyClaude(App):
                 return i
         return None
 
+    def _focus_panel(self, index: int) -> None:
+        """Focus a specific panel by index (0-based)."""
+        if 0 <= index < len(self._panels):
+            self._panels[index].focus()
+
+    def action_focus_panel_1(self) -> None:
+        """Focus panel 1 (Slash Commands)."""
+        self._focus_panel(0)
+
+    def action_focus_panel_2(self) -> None:
+        """Focus panel 2 (Subagents)."""
+        self._focus_panel(1)
+
+    def action_focus_panel_3(self) -> None:
+        """Focus panel 3 (Skills)."""
+        self._focus_panel(2)
+
+    def action_focus_panel_4(self) -> None:
+        """Focus panel 4 (Memory Files)."""
+        self._focus_panel(3)
+
+    def action_focus_panel_5(self) -> None:
+        """Focus panel 5 (MCPs)."""
+        self._focus_panel(4)
+
     def action_filter_all(self) -> None:
         """Show all customizations (clear level filter)."""
         self._level_filter = None
         self._update_panels()
         self._update_subtitle()
+        self._update_status_filter("All")
 
     def action_filter_user(self) -> None:
         """Show only user-level customizations."""
         self._level_filter = ConfigLevel.USER
         self._update_panels()
         self._update_subtitle()
+        self._update_status_filter("User")
 
     def action_filter_project(self) -> None:
         """Show only project-level customizations."""
         self._level_filter = ConfigLevel.PROJECT
         self._update_panels()
         self._update_subtitle()
+        self._update_status_filter("Project")
+
+    def _update_status_filter(self, level: str) -> None:
+        """Update status panel filter level and path display."""
+        if self._status_panel:
+            self._status_panel.filter_level = level
+            if level == "User":
+                self._status_panel.config_path = "~/.claude"
+            elif level == "Project":
+                self._status_panel.config_path = str(self._discovery_service.project_config_path)
+            else:
+                project_name = self._discovery_service.project_root.name
+                self._status_panel.config_path = project_name
 
     def action_search(self) -> None:
         """Activate search mode."""
@@ -242,15 +303,16 @@ class LazyClaude(App):
 [bold]Navigation[/]
   j/k or arrows  Move up/down in list
   g/G            Go to top/bottom
+  1-5            Jump to panel by number
   Tab            Switch between panels
   Enter          View details
   Esc            Go back
 
 [bold]Filtering[/]
   /              Search by name/description
-  1              Show all levels
-  2              Show user-level only
-  3              Show project-level only
+  a              Show all levels
+  u              Show user-level only
+  p              Show project-level only
 
 [bold]Actions[/]
   R              Refresh from disk

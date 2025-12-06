@@ -116,6 +116,12 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         self._cache = None
         return self.discover_all()
 
+    def get_active_config_path(self) -> Path:
+        """Get the active configuration path (project if exists, else user)."""
+        if self.project_config_path.is_dir():
+            return self.project_config_path
+        return self.user_config_path
+
     def _sort_customizations(
         self, customizations: list[Customization]
     ) -> list[Customization]:

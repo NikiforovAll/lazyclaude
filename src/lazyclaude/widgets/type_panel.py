@@ -1,9 +1,9 @@
 """TypePanel widget for displaying customizations of a single type."""
 
 from textual.binding import Binding
+from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
-from textual.containers import VerticalScroll
 from textual.widget import Widget
 from textual.widgets import Static
 
@@ -30,16 +30,11 @@ class TypePanel(Widget):
         max-height: 12;
         border: solid $primary;
         padding: 0 1;
+        border-title-align: left;
     }
 
     TypePanel:focus {
         border: double $accent;
-    }
-
-    TypePanel .panel-header {
-        text-style: bold;
-        color: $text;
-        padding-bottom: 1;
     }
 
     TypePanel .items-container {
@@ -71,6 +66,7 @@ class TypePanel(Widget):
     )
     customizations: reactive[list[Customization]] = reactive(list, always_update=True)
     selected_index: reactive[int] = reactive(0)
+    panel_number: reactive[int] = reactive(1)
 
     class SelectionChanged(Message):
         """Emitted when selected customization changes."""
@@ -118,7 +114,6 @@ class TypePanel(Widget):
 
     def compose(self):
         """Compose the panel content."""
-        yield Static(self._render_header(), classes="panel-header")
         with VerticalScroll(classes="items-container"):
             if not self.customizations:
                 yield Static("[dim italic]No items[/]", classes="empty-message")
@@ -129,7 +124,7 @@ class TypePanel(Widget):
     def _render_header(self) -> str:
         """Render the panel header with type and count."""
         count = len(self.customizations)
-        return f"{self.type_label} ({count})"
+        return f"[{self.panel_number}]-{self.type_label} ({count})-"
 
     def _render_item(self, index: int, item: Customization) -> str:
         """Render a single item."""
@@ -142,7 +137,9 @@ class TypePanel(Widget):
         """React to customizations list changes."""
         if self.selected_index >= len(customizations):
             self.selected_index = max(0, len(customizations) - 1)
-        self._rebuild_items()
+        if self.is_mounted:
+            self.border_title = self._render_header()
+            self.call_later(self._rebuild_items)
 
     def watch_selected_index(self, index: int) -> None:  # noqa: ARG002
         """React to selected index changes."""
@@ -150,38 +147,32 @@ class TypePanel(Widget):
         self._scroll_to_selection()
         self.post_message(self.SelectionChanged(self.selected_customization))
 
-    def _rebuild_items(self) -> None:
+    async def _rebuild_items(self) -> None:
         """Rebuild item widgets when customizations change."""
         if not self.is_mounted:
             return
-        try:
-            header = self.query_one(".panel-header", Static)
-            header.update(self._render_header())
-            container = self.query_one(".items-container", VerticalScroll)
-            container.remove_children()
-            if not self.customizations:
-                container.mount(Static("[dim italic]No items[/]", classes="empty-message"))
-            else:
-                for i, item in enumerate(self.customizations):
-                    is_selected = i == self.selected_index and self.has_focus
-                    classes = "item item-selected" if is_selected else "item"
-                    container.mount(Static(self._render_item(i, item), classes=classes, id=f"item-{i}"))
-        except Exception:
-            pass
+        container = self.query_one(".items-container", VerticalScroll)
+        await container.remove_children()
+        if not self.customizations:
+            await container.mount(Static("[dim italic]No items[/]", classes="empty-message"))
+        else:
+            for i, item in enumerate(self.customizations):
+                is_selected = i == self.selected_index and self.has_focus
+                classes = "item item-selected" if is_selected else "item"
+                await container.mount(Static(self._render_item(i, item), classes=classes))
+        container.scroll_home(animate=False)
 
     def on_mount(self) -> None:
         """Handle mount event - rebuild items if customizations were set before mount."""
+        self.border_title = self._render_header()
         if self.customizations:
-            self._rebuild_items()
-            self.call_after_refresh(self._scroll_to_selection)
+            self.call_later(self._rebuild_items)
 
     def _refresh_display(self) -> None:
         """Refresh the panel display (updates existing widgets)."""
         try:
-            header = self.query_one(".panel-header", Static)
-            header.update(self._render_header())
-            for i, item in enumerate(self.customizations):
-                item_widget = self.query_one(f"#item-{i}", Static)
+            items = list(self.query(".item"))
+            for i, (item_widget, item) in enumerate(zip(items, self.customizations, strict=False)):
                 item_widget.update(self._render_item(i, item))
                 is_selected = i == self.selected_index and self.has_focus
                 item_widget.set_class(is_selected, "item-selected")
@@ -193,8 +184,9 @@ class TypePanel(Widget):
         if not self.customizations:
             return
         try:
-            item_widget = self.query_one(f"#item-{self.selected_index}", Static)
-            item_widget.scroll_visible(animate=False)
+            items = list(self.query(".item"))
+            if 0 <= self.selected_index < len(items):
+                items[self.selected_index].scroll_visible(animate=False)
         except Exception:
             pass
 

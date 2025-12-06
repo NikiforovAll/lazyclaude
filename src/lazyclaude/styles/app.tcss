@@ -17,6 +17,15 @@ Screen {
     height: 100%;
 }
 
+/* Status Panel */
+StatusPanel {
+    height: 3;
+    border: solid $primary;
+    padding: 0 1;
+    margin-bottom: 1;
+    border-title-align: left;
+}
+
 /* Type Panels */
 TypePanel {
     height: auto;
@@ -25,6 +34,7 @@ TypePanel {
     border: solid $primary;
     padding: 0 1;
     margin-bottom: 1;
+    border-title-align: left;
 }
 
 TypePanel:focus {
