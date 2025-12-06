@@ -14,6 +14,8 @@ class TypePanel(Widget):
     """Panel displaying customizations of a single type."""
 
     BINDINGS = [
+        Binding("tab", "focus_next_panel", "Next Panel", show=False),
+        Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("down", "cursor_down", "Down", show=False),
@@ -232,6 +234,14 @@ class TypePanel(Widget):
         """Drill down into selected customization."""
         if self.selected_customization:
             self.post_message(self.DrillDown(self.selected_customization))
+
+    def action_focus_next_panel(self) -> None:
+        """Delegate to app's focus_next_panel action."""
+        self.app.action_focus_next_panel()
+
+    def action_focus_previous_panel(self) -> None:
+        """Delegate to app's focus_previous_panel action."""
+        self.app.action_focus_previous_panel()
 
     def set_customizations(self, customizations: list[Customization]) -> None:
         """Set the customizations for this panel (filtered by type)."""
