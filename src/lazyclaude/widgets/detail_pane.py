@@ -1,11 +1,30 @@
 """MainPane widget for displaying customization details."""
 
+from rich.console import RenderableType
+from rich.syntax import Syntax
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
 from lazyclaude.models.customization import Customization
+
+TEXTUAL_TO_PYGMENTS_THEME: dict[str, str] = {
+    "dracula": "dracula",
+    "gruvbox": "gruvbox-dark",
+    "monokai": "monokai",
+    "nord": "nord",
+    "solarized-light": "solarized-light",
+    "catppuccin-latte": "default",
+    "catppuccin-mocha": "monokai",
+    "flexoki": "default",
+    "textual-ansi": "default",
+    "textual-dark": "monokai",
+    "textual-light": "default",
+    "tokyo-night": "nord",
+}
+
+DEFAULT_SYNTAX_THEME = "monokai"
 
 
 class MainPane(Widget):
@@ -57,7 +76,7 @@ class MainPane(Widget):
         """Compose the pane content."""
         yield Static(self._render_content(), classes="pane-content")
 
-    def _render_content(self) -> str:
+    def _render_content(self) -> RenderableType:
         """Render content based on current view mode."""
         if self.view_mode == "metadata":
             return self._render_metadata()
@@ -83,17 +102,35 @@ class MainPane(Widget):
             lines.append(f"[red]Error:[/] {c.error}")
         return "\n".join(lines)
 
-    def _render_file_content(self) -> str:
-        """Render file content view."""
+    def _get_syntax_theme(self) -> str:
+        """Get Pygments theme based on current app theme."""
+        app_theme = self.app.theme or "textual-dark"
+        return TEXTUAL_TO_PYGMENTS_THEME.get(app_theme, DEFAULT_SYNTAX_THEME)
+
+    def _render_file_content(self) -> RenderableType:
+        """Render file content view with syntax highlighting."""
         if not self.customization:
             return "[dim italic]No content to display[/]"
         if self.customization.has_error:
             return f"[red]Error:[/] {self.customization.error}"
-        return self.customization.content or "[dim italic]Empty[/]"
+        content = self.customization.content
+        if not content:
+            return "[dim italic]Empty[/]"
+
+        lexer_map = {".md": "markdown", ".json": "json"}
+        suffix = self.customization.path.suffix.lower()
+        lexer = lexer_map.get(suffix, "text")
+
+        return Syntax(content, lexer, theme=self._get_syntax_theme(), line_numbers=True, word_wrap=True)
 
     def on_mount(self) -> None:
         """Handle mount event."""
         self._update_title()
+        self.watch(self.app, "theme", self._on_theme_changed)
+
+    def _on_theme_changed(self) -> None:
+        """Handle app theme changes."""
+        self._refresh_display()
 
     def _update_title(self) -> None:
         """Update border title based on view mode."""
