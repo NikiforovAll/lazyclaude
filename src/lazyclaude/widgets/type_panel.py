@@ -125,9 +125,15 @@ class TypePanel(Widget):
                     yield Static(self._render_item(i, item), classes="item", id=f"item-{i}")
 
     def _render_header(self) -> str:
-        """Render the panel header with type and count."""
+        """Render the panel header with type label."""
+        return f"[{self.panel_number}]-{self.type_label}-"
+
+    def _render_footer(self) -> str:
+        """Render the panel footer with selection position."""
         count = len(self.customizations)
-        return f"[{self.panel_number}]-{self.type_label} ({count})-"
+        if count == 0:
+            return "0 of 0"
+        return f"{self.selected_index + 1} of {count}"
 
     def _render_item(self, index: int, item: Customization) -> str:
         """Render a single item."""
@@ -142,12 +148,15 @@ class TypePanel(Widget):
             self.selected_index = max(0, len(customizations) - 1)
         if self.is_mounted:
             self.border_title = self._render_header()
+            self.border_subtitle = self._render_footer()
             self.call_later(self._rebuild_items)
             if self.is_active:
                 self.post_message(self.SelectionChanged(self.selected_customization))
 
     def watch_selected_index(self, index: int) -> None:  # noqa: ARG002
         """React to selected index changes."""
+        if self.is_mounted:
+            self.border_subtitle = self._render_footer()
         self._refresh_display()
         self._scroll_to_selection()
         self.post_message(self.SelectionChanged(self.selected_customization))
@@ -170,6 +179,7 @@ class TypePanel(Widget):
     def on_mount(self) -> None:
         """Handle mount event - rebuild items if customizations were set before mount."""
         self.border_title = self._render_header()
+        self.border_subtitle = self._render_footer()
         if self.customizations:
             self.call_later(self._rebuild_items)
 
