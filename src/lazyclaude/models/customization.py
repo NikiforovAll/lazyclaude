@@ -12,6 +12,7 @@ class ConfigLevel(Enum):
     USER = auto()  # ~/.claude/
     PROJECT = auto()  # ./.claude/
     PROJECT_LOCAL = auto()  # ~/.claude.json (for MCPs only)
+    PLUGIN = auto()  # ~/.claude/plugins/{plugin}/
 
 
 class CustomizationType(Enum):
@@ -67,6 +68,17 @@ class MCPServerMetadata:
 
 
 @dataclass
+class PluginInfo:
+    """Information about the source plugin for a customization."""
+
+    plugin_id: str  # e.g., "handbook@cc-handbook"
+    short_name: str  # e.g., "handbook"
+    version: str  # e.g., "1.3.1"
+    install_path: Path
+    is_local: bool = False
+
+
+@dataclass
 class Customization:
     """A Claude Code customization item."""
 
@@ -80,6 +92,7 @@ class Customization:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     error: str | None = None
+    plugin_info: PluginInfo | None = None
 
     @property
     def has_error(self) -> bool:
@@ -88,7 +101,9 @@ class Customization:
 
     @property
     def display_name(self) -> str:
-        """Name for display in UI, with level indicator."""
+        """Name for display in UI, with level indicator or plugin prefix."""
+        if self.plugin_info:
+            return f"[dim]{self.plugin_info.short_name}:[/]{self.name}"
         level_indicator = {
             ConfigLevel.USER: "[U]",
             ConfigLevel.PROJECT: "[P]",
@@ -103,6 +118,7 @@ class Customization:
             ConfigLevel.USER: "User",
             ConfigLevel.PROJECT: "Project",
             ConfigLevel.PROJECT_LOCAL: "Project-Local",
+            ConfigLevel.PLUGIN: "Plugin",
         }[self.level]
 
     @property

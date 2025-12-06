@@ -1,12 +1,15 @@
 """Service for discovering Claude Code customizations."""
 
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 
 from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
+    PluginInfo,
 )
 from lazyclaude.services.parsers.mcp import MCPParser
 from lazyclaude.services.parsers.memory_file import MemoryFileParser
@@ -82,7 +85,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         """
         self.user_config_path = user_config_path or Path.home() / ".claude"
         self.project_config_path = project_config_path or Path.cwd() / ".claude"
-        self.project_root = project_config_path.parent if project_config_path else Path.cwd()
+        self.project_root = (
+            project_config_path.parent if project_config_path else Path.cwd()
+        )
 
         self._cache: list[Customization] | None = None
 
@@ -98,6 +103,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         customizations.extend(self._discover_skills())
         customizations.extend(self._discover_memory_files())
         customizations.extend(self._discover_mcps())
+        customizations.extend(self._discover_plugins())
 
         customizations = self._sort_customizations(customizations)
         self._cache = customizations
@@ -232,5 +238,164 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         project_mcp_file = self.project_root / ".mcp.json"
         if project_mcp_file.is_file():
             customizations.extend(parser.parse(project_mcp_file, ConfigLevel.PROJECT))
+
+        return customizations
+
+    def _discover_plugins(self) -> list[Customization]:
+        """Discover customizations from installed and enabled plugins."""
+        customizations: list[Customization] = []
+
+        installed_plugins = self._load_installed_plugins()
+        if not installed_plugins:
+            return customizations
+
+        enabled_plugins = self._load_enabled_plugins()
+
+        for plugin_id, plugin_data in installed_plugins.items():
+            if not enabled_plugins.get(plugin_id, True):
+                continue
+
+            plugin_info = self._create_plugin_info(plugin_id, plugin_data)
+            if plugin_info is None:
+                continue
+
+            install_path = plugin_info.install_path
+            if not install_path.is_dir():
+                continue
+
+            customizations.extend(
+                self._discover_plugin_slash_commands(install_path, plugin_info)
+            )
+            customizations.extend(
+                self._discover_plugin_subagents(install_path, plugin_info)
+            )
+            customizations.extend(
+                self._discover_plugin_skills(install_path, plugin_info)
+            )
+            customizations.extend(self._discover_plugin_mcps(install_path, plugin_info))
+
+        return customizations
+
+    def _load_installed_plugins(self) -> dict[str, Any]:
+        """Load installed plugins from ~/.claude/plugins/installed_plugins.json."""
+        plugins_file = self.user_config_path / "plugins" / "installed_plugins.json"
+        if not plugins_file.is_file():
+            return {}
+
+        try:
+            data = json.loads(plugins_file.read_text(encoding="utf-8"))
+            return data.get("plugins", {})
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    def _load_enabled_plugins(self) -> dict[str, bool]:
+        """Load enabled plugins from ~/.claude/settings.json."""
+        settings_file = self.user_config_path / "settings.json"
+        if not settings_file.is_file():
+            return {}
+
+        try:
+            data = json.loads(settings_file.read_text(encoding="utf-8"))
+            return data.get("enabledPlugins", {})
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    def _create_plugin_info(
+        self, plugin_id: str, plugin_data: dict[str, Any]
+    ) -> PluginInfo | None:
+        """Create PluginInfo from plugin data."""
+        install_path_str = plugin_data.get("installPath")
+        if not install_path_str:
+            return None
+
+        short_name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
+        install_path = Path(install_path_str)
+
+        if install_path.parent.is_dir():
+            short_name_path = install_path.parent / short_name
+            if short_name_path.is_dir() and (
+                short_name_path != install_path or not install_path.is_dir()
+            ):
+                install_path = short_name_path
+
+        return PluginInfo(
+            plugin_id=plugin_id,
+            short_name=short_name,
+            version=plugin_data.get("version", "unknown"),
+            install_path=install_path,
+            is_local=plugin_data.get("isLocal", False),
+        )
+
+    def _discover_plugin_slash_commands(
+        self, install_path: Path, plugin_info: PluginInfo
+    ) -> list[Customization]:
+        """Discover slash commands from a plugin."""
+        customizations: list[Customization] = []
+        commands_dir = install_path / "commands"
+
+        if not commands_dir.is_dir():
+            return customizations
+
+        parser = SlashCommandParser(commands_dir)
+        for md_file in commands_dir.rglob("*.md"):
+            customization = parser.parse(md_file, ConfigLevel.PLUGIN)
+            customization.plugin_info = plugin_info
+            customizations.append(customization)
+
+        return customizations
+
+    def _discover_plugin_subagents(
+        self, install_path: Path, plugin_info: PluginInfo
+    ) -> list[Customization]:
+        """Discover subagents from a plugin."""
+        customizations: list[Customization] = []
+        agents_dir = install_path / "agents"
+
+        if not agents_dir.is_dir():
+            return customizations
+
+        parser = SubagentParser(agents_dir)
+        for md_file in agents_dir.glob("*.md"):
+            customization = parser.parse(md_file, ConfigLevel.PLUGIN)
+            customization.plugin_info = plugin_info
+            customizations.append(customization)
+
+        return customizations
+
+    def _discover_plugin_skills(
+        self, install_path: Path, plugin_info: PluginInfo
+    ) -> list[Customization]:
+        """Discover skills from a plugin."""
+        customizations: list[Customization] = []
+        skills_dir = install_path / "skills"
+
+        if not skills_dir.is_dir():
+            return customizations
+
+        parser = SkillParser(skills_dir)
+        for skill_dir in skills_dir.iterdir():
+            skill_md = skill_dir / "SKILL.md"
+            if skill_md.is_file():
+                customization = parser.parse(skill_md, ConfigLevel.PLUGIN)
+                customization.plugin_info = plugin_info
+                customizations.append(customization)
+
+        return customizations
+
+    def _discover_plugin_mcps(
+        self, install_path: Path, plugin_info: PluginInfo
+    ) -> list[Customization]:
+        """Discover MCP configurations from a plugin."""
+        customizations: list[Customization] = []
+        mcp_file = install_path / ".mcp.json"
+
+        if not mcp_file.is_file():
+            return customizations
+
+        parser = MCPParser()
+        mcp_customizations = parser.parse(mcp_file, ConfigLevel.PLUGIN)
+        for customization in mcp_customizations:
+            customization.plugin_info = plugin_info
+            customizations.append(customization)
 
         return customizations

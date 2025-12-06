@@ -68,9 +68,20 @@ class FilterService(IFilterService):
 
         if query:
             query_lower = query.lower()
-            result = [c for c in result if query_lower in c.name.lower()]
+            result = [c for c in result if self._matches_query(c, query_lower)]
 
         return result
+
+    def _matches_query(self, customization: Customization, query: str) -> bool:
+        """Check if customization matches the search query."""
+        if query in customization.name.lower():
+            return True
+        if customization.plugin_info:
+            prefix = f"{customization.plugin_info.short_name}:".lower()
+            full_name = f"{prefix}{customization.name.lower()}"
+            if query in prefix or query in full_name:
+                return True
+        return False
 
     def by_type(
         self,

@@ -38,6 +38,7 @@ class LazyClaude(App):
         Binding("a", "filter_all", "All"),
         Binding("u", "filter_user", "User"),
         Binding("p", "filter_project", "Project"),
+        Binding("P", "filter_plugin", "Plugin"),
         Binding("/", "search", "Search"),
         Binding("[", "prev_view", "[", show=True),
         Binding("]", "next_view", "]", show=True),
@@ -137,6 +138,8 @@ class LazyClaude(App):
             parts.append("User Level")
         elif self._level_filter == ConfigLevel.PROJECT:
             parts.append("Project Level")
+        elif self._level_filter == ConfigLevel.PLUGIN:
+            parts.append("Plugin Level")
         else:
             parts.append("All Levels")
 
@@ -279,6 +282,13 @@ class LazyClaude(App):
         self._update_subtitle()
         self._update_status_filter("Project")
 
+    def action_filter_plugin(self) -> None:
+        """Show only plugin-level customizations."""
+        self._level_filter = ConfigLevel.PLUGIN
+        self._update_panels()
+        self._update_subtitle()
+        self._update_status_filter("Plugin")
+
     def _update_status_filter(self, level: str) -> None:
         """Update status panel filter level and path display."""
         if self._status_panel:
@@ -286,7 +296,11 @@ class LazyClaude(App):
             if level == "User":
                 self._status_panel.config_path = "~/.claude"
             elif level == "Project":
-                self._status_panel.config_path = str(self._discovery_service.project_config_path)
+                self._status_panel.config_path = str(
+                    self._discovery_service.project_config_path
+                )
+            elif level == "Plugin":
+                self._status_panel.config_path = "~/.claude/plugins"
             else:
                 project_name = self._discovery_service.project_root.name
                 self._status_panel.config_path = project_name
@@ -305,7 +319,8 @@ class LazyClaude(App):
         self._update_subtitle()
 
     def on_filter_input_filter_cancelled(
-        self, message: FilterInput.FilterCancelled  # noqa: ARG002
+        self,
+        message: FilterInput.FilterCancelled,  # noqa: ARG002
     ) -> None:
         """Handle filter cancellation."""
         self._search_query = ""
@@ -315,7 +330,8 @@ class LazyClaude(App):
             self._panels[0].focus()
 
     def on_filter_input_filter_applied(
-        self, message: FilterInput.FilterApplied  # noqa: ARG002
+        self,
+        message: FilterInput.FilterApplied,  # noqa: ARG002
     ) -> None:
         """Handle filter application (Enter key)."""
         if self._filter_input:
@@ -347,6 +363,7 @@ class LazyClaude(App):
   a              Show all levels
   u              Show user-level only
   p              Show project-level only
+  P              Show plugin-level only
 
 [bold]Actions[/]
   e              Open in $EDITOR
