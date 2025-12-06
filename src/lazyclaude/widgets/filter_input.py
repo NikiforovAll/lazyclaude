@@ -69,7 +69,7 @@ class FilterInput(Widget):
 
     def compose(self):
         """Compose the filter input."""
-        self._input = Input(placeholder="Filter by name or description...")
+        self._input = Input(placeholder="Filter by name...")
         yield self._input
 
     def on_input_changed(self, event: Input.Changed) -> None:

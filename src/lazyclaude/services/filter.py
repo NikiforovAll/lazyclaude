@@ -24,7 +24,7 @@ class IFilterService(ABC):
 
         Args:
             customizations: Source list to filter.
-            query: Search string (matches name and description).
+            query: Search string (matches name only).
             level: Optional level filter (None = all levels).
 
         Returns:
@@ -68,12 +68,7 @@ class FilterService(IFilterService):
 
         if query:
             query_lower = query.lower()
-            result = [
-                c
-                for c in result
-                if query_lower in c.name.lower()
-                or (c.description and query_lower in c.description.lower())
-            ]
+            result = [c for c in result if query_lower in c.name.lower()]
 
         return result
 
