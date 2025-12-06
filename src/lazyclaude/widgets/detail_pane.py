@@ -1,4 +1,4 @@
-"""DetailPane widget for displaying customization details."""
+"""MainPane widget for displaying customization details."""
 
 from textual.binding import Binding
 from textual.reactive import reactive
@@ -8,10 +8,12 @@ from textual.widgets import Static
 from lazyclaude.models.customization import Customization
 
 
-class DetailPane(Widget):
-    """Pane displaying full details of selected customization."""
+class MainPane(Widget):
+    """Main pane with switchable content/metadata views."""
 
     BINDINGS = [
+        Binding("[", "prev_view", "Prev View", show=False),
+        Binding("]", "next_view", "Next View", show=False),
         Binding("j", "scroll_down", "Scroll down", show=False),
         Binding("k", "scroll_up", "Scroll up", show=False),
         Binding("down", "scroll_down", "Scroll down", show=False),
@@ -21,43 +23,25 @@ class DetailPane(Widget):
     ]
 
     DEFAULT_CSS = """
-    DetailPane {
+    MainPane {
+        height: 100%;
         border: solid $primary;
         padding: 1;
         overflow-y: auto;
+        border-title-align: left;
     }
 
-    DetailPane:focus {
+    MainPane:focus {
         border: double $accent;
     }
 
-    DetailPane .detail-header {
-        text-style: bold;
-        color: $accent;
-        padding-bottom: 1;
-    }
-
-    DetailPane .detail-metadata {
-        color: $text-muted;
-        padding-bottom: 1;
-    }
-
-    DetailPane .detail-content {
-        color: $text;
-    }
-
-    DetailPane .detail-error {
-        color: $error;
-        text-style: bold;
-    }
-
-    DetailPane .empty-message {
-        color: $text-muted;
-        text-style: italic;
+    MainPane .pane-content {
+        width: 100%;
     }
     """
 
     customization: reactive[Customization | None] = reactive(None)
+    view_mode: reactive[str] = reactive("content")
 
     def __init__(
         self,
@@ -65,45 +49,64 @@ class DetailPane(Widget):
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
-        """Initialize DetailPane."""
+        """Initialize MainPane."""
         super().__init__(name=name, id=id, classes=classes)
         self.can_focus = True
 
     def compose(self):
         """Compose the pane content."""
-        yield Static(self._render_content(), classes="detail-content")
+        yield Static(self._render_content(), classes="pane-content")
 
     def _render_content(self) -> str:
-        """Render the detail content."""
+        """Render content based on current view mode."""
+        if self.view_mode == "metadata":
+            return self._render_metadata()
+        return self._render_file_content()
+
+    def _render_metadata(self) -> str:
+        """Render metadata view."""
         if not self.customization:
-            return "[dim italic]Select a customization to view details[/]"
+            return "[dim italic]Select a customization[/]"
 
         c = self.customization
-        lines = []
-
-        lines.append(f"[bold]{c.name}[/]")
-        lines.append("")
-
-        lines.append(f"[dim]Type:[/] {c.type_label}")
-        lines.append(f"[dim]Level:[/] {c.level_label}")
-        lines.append(f"[dim]Path:[/] {c.path}")
-
+        lines = [
+            f"[bold]{c.name}[/]",
+            "",
+            f"[dim]Type:[/] {c.type_label}",
+            f"[dim]Level:[/] {c.level_label}",
+            f"[dim]Path:[/] {c.path}",
+        ]
         if c.description:
             lines.append(f"[dim]Description:[/] {c.description}")
-
-        lines.append("")
-
         if c.has_error:
-            lines.append(f"[red bold]Error:[/] [red]{c.error}[/]")
-        elif c.content:
-            lines.append("[dim]Content:[/]")
-            lines.append("─" * 40)
-            content_preview = c.content[:2000]
-            if len(c.content) > 2000:
-                content_preview += "\n... (truncated)"
-            lines.append(content_preview)
-
+            lines.append("")
+            lines.append(f"[red]Error:[/] {c.error}")
         return "\n".join(lines)
+
+    def _render_file_content(self) -> str:
+        """Render file content view."""
+        if not self.customization:
+            return "[dim italic]No content to display[/]"
+        if self.customization.has_error:
+            return f"[red]Error:[/] {self.customization.error}"
+        return self.customization.content or "[dim italic]Empty[/]"
+
+    def on_mount(self) -> None:
+        """Handle mount event."""
+        self._update_title()
+
+    def _update_title(self) -> None:
+        """Update border title based on view mode."""
+        if self.view_mode == "content":
+            tabs = "[bold green]Content[/] - Metadata"
+        else:
+            tabs = "Content - [bold green]Metadata[/]"
+        self.border_title = f"[0]-{tabs}-"
+
+    def watch_view_mode(self, mode: str) -> None:  # noqa: ARG002
+        """React to view mode changes."""
+        self._update_title()
+        self._refresh_display()
 
     def watch_customization(
         self, customization: Customization | None  # noqa: ARG002
@@ -114,10 +117,18 @@ class DetailPane(Widget):
     def _refresh_display(self) -> None:
         """Refresh the pane display."""
         try:
-            content = self.query_one(".detail-content", Static)
+            content = self.query_one(".pane-content", Static)
             content.update(self._render_content())
         except Exception:
             pass
+
+    def action_next_view(self) -> None:
+        """Switch to next view."""
+        self.view_mode = "metadata" if self.view_mode == "content" else "content"
+
+    def action_prev_view(self) -> None:
+        """Switch to previous view."""
+        self.view_mode = "content" if self.view_mode == "metadata" else "metadata"
 
     def action_scroll_down(self) -> None:
         """Scroll content down."""

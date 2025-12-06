@@ -67,6 +67,7 @@ class TypePanel(Widget):
     customizations: reactive[list[Customization]] = reactive(list, always_update=True)
     selected_index: reactive[int] = reactive(0)
     panel_number: reactive[int] = reactive(1)
+    is_active: reactive[bool] = reactive(False)
 
     class SelectionChanged(Message):
         """Emitted when selected customization changes."""
@@ -128,7 +129,7 @@ class TypePanel(Widget):
 
     def _render_item(self, index: int, item: Customization) -> str:
         """Render a single item."""
-        is_selected = index == self.selected_index and self.has_focus
+        is_selected = index == self.selected_index and self.is_active
         prefix = ">" if is_selected else " "
         error_marker = " [red]![/]" if item.has_error else ""
         return f"{prefix} {item.display_name}{error_marker}"
@@ -140,6 +141,8 @@ class TypePanel(Widget):
         if self.is_mounted:
             self.border_title = self._render_header()
             self.call_later(self._rebuild_items)
+            if self.is_active:
+                self.post_message(self.SelectionChanged(self.selected_customization))
 
     def watch_selected_index(self, index: int) -> None:  # noqa: ARG002
         """React to selected index changes."""
@@ -157,7 +160,7 @@ class TypePanel(Widget):
             await container.mount(Static("[dim italic]No items[/]", classes="empty-message"))
         else:
             for i, item in enumerate(self.customizations):
-                is_selected = i == self.selected_index and self.has_focus
+                is_selected = i == self.selected_index and self.is_active
                 classes = "item item-selected" if is_selected else "item"
                 await container.mount(Static(self._render_item(i, item), classes=classes))
         container.scroll_home(animate=False)
@@ -174,7 +177,7 @@ class TypePanel(Widget):
             items = list(self.query(".item"))
             for i, (item_widget, item) in enumerate(zip(items, self.customizations, strict=False)):
                 item_widget.update(self._render_item(i, item))
-                is_selected = i == self.selected_index and self.has_focus
+                is_selected = i == self.selected_index and self.is_active
                 item_widget.set_class(is_selected, "item-selected")
         except Exception:
             pass
@@ -190,13 +193,19 @@ class TypePanel(Widget):
         except Exception:
             pass
 
+    def on_click(self) -> None:
+        """Handle click - focus this panel."""
+        self.focus()
+
     def on_focus(self) -> None:
         """Handle focus event."""
+        self.is_active = True
         self._refresh_display()
         self.post_message(self.SelectionChanged(self.selected_customization))
 
     def on_blur(self) -> None:
         """Handle blur event."""
+        self.is_active = False
         self._refresh_display()
 
     def action_cursor_down(self) -> None:

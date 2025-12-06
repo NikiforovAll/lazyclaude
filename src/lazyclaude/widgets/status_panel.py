@@ -38,7 +38,7 @@ class StatusPanel(Widget):
 
     def on_mount(self) -> None:
         """Handle mount event."""
-        self.border_title = "[0]-Status-"
+        self.border_title = "Status"
 
     def _update_content(self) -> None:
         """Update the status content display."""

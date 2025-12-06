@@ -14,7 +14,7 @@ from lazyclaude.models.customization import (
 )
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
-from lazyclaude.widgets.detail_pane import DetailPane
+from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
@@ -36,6 +36,9 @@ class LazyClaude(App):
         Binding("u", "filter_user", "User"),
         Binding("p", "filter_project", "Project"),
         Binding("/", "search", "Search"),
+        Binding("[", "prev_view", "[", show=True),
+        Binding("]", "next_view", "]", show=True),
+        Binding("0", "focus_main_pane", "Panel 0", show=False),
         Binding("1", "focus_panel_1", "Panel 1", show=False),
         Binding("2", "focus_panel_2", "Panel 2", show=False),
         Binding("3", "focus_panel_3", "Panel 3", show=False),
@@ -66,7 +69,7 @@ class LazyClaude(App):
         self._search_query: str = ""
         self._panels: list[TypePanel] = []
         self._status_panel: StatusPanel | None = None
-        self._detail_pane: DetailPane | None = None
+        self._main_pane: MainPane | None = None
         self._filter_input: FilterInput | None = None
         self._help_visible = False
 
@@ -82,8 +85,8 @@ class LazyClaude(App):
                 self._panels.append(panel)
                 yield panel
 
-        self._detail_pane = DetailPane(id="detail-pane")
-        yield self._detail_pane
+        self._main_pane = MainPane(id="main-pane")
+        yield self._main_pane
 
         self._filter_input = FilterInput(id="filter-input")
         yield self._filter_input
@@ -142,14 +145,14 @@ class LazyClaude(App):
         self, message: TypePanel.SelectionChanged
     ) -> None:
         """Handle selection change in a type panel."""
-        if self._detail_pane:
-            self._detail_pane.customization = message.customization
+        if self._main_pane:
+            self._main_pane.customization = message.customization
 
     def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
         """Handle drill down into a customization."""
-        if self._detail_pane:
-            self._detail_pane.customization = message.customization
-            self._detail_pane.focus()
+        if self._main_pane:
+            self._main_pane.customization = message.customization
+            self._main_pane.focus()
 
     def action_quit(self) -> None:
         """Quit the application."""
@@ -161,8 +164,8 @@ class LazyClaude(App):
         self._update_panels()
 
     def action_back(self) -> None:
-        """Go back - return focus to panel from detail pane."""
-        if self._detail_pane and self._detail_pane.has_focus:
+        """Go back - return focus to panel from main pane."""
+        if self._main_pane and self._main_pane.has_focus:
             focused_panel = self._get_focused_panel()
             if focused_panel:
                 focused_panel.focus()
@@ -223,6 +226,21 @@ class LazyClaude(App):
     def action_focus_panel_5(self) -> None:
         """Focus panel 5 (MCPs)."""
         self._focus_panel(4)
+
+    def action_focus_main_pane(self) -> None:
+        """Focus the main pane (panel 0)."""
+        if self._main_pane:
+            self._main_pane.focus()
+
+    def action_prev_view(self) -> None:
+        """Switch main pane to previous view."""
+        if self._main_pane:
+            self._main_pane.action_prev_view()
+
+    def action_next_view(self) -> None:
+        """Switch main pane to next view."""
+        if self._main_pane:
+            self._main_pane.action_next_view()
 
     def action_filter_all(self) -> None:
         """Show all customizations (clear level filter)."""

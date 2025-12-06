@@ -13,7 +13,7 @@ Screen {
     height: 100%;
 }
 
-#detail-pane {
+#main-pane {
     height: 100%;
 }
 
@@ -60,14 +60,8 @@ TypePanel .item-selected {
     text-style: bold;
 }
 
-/* Detail Pane */
-DetailPane {
-    border: solid $primary;
-    padding: 1;
-    overflow-y: auto;
-}
-
-DetailPane:focus {
+/* Main Pane */
+MainPane:focus {
     border: double $accent;
 }
 
