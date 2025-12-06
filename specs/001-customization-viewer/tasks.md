@@ -26,11 +26,11 @@ Based on plan.md structure:
 
 **Purpose**: Initialize Python project with uv, Textual, and required dependencies
 
-- [ ] T001 Create pyproject.toml with uv-compatible config, textual>=0.89.0, rich, pyyaml dependencies in pyproject.toml
-- [ ] T002 Create src/lazyclaude/__init__.py with package version and exports
-- [ ] T003 [P] Create src/lazyclaude/__main__.py entry point for `python -m lazyclaude`
-- [ ] T004 [P] Configure ruff linting/formatting in pyproject.toml
-- [ ] T005 Run `uv sync` to generate uv.lock and verify installation
+- [x] T001 Create pyproject.toml with uv-compatible config, textual>=0.89.0, rich, pyyaml dependencies in pyproject.toml
+- [x] T002 Create src/lazyclaude/__init__.py with package version and exports
+- [x] T003 [P] Create src/lazyclaude/__main__.py entry point for `python -m lazyclaude`
+- [x] T004 [P] Configure ruff linting/formatting in pyproject.toml
+- [x] T005 Run `uv sync` to generate uv.lock and verify installation
 
 **Checkpoint**: Project initializes with `uv run python -m lazyclaude`
 
@@ -42,24 +42,24 @@ Based on plan.md structure:
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 [P] Create ConfigLevel enum in src/lazyclaude/models/customization.py
-- [ ] T007 [P] Create CustomizationType enum in src/lazyclaude/models/customization.py
-- [ ] T008 Create Customization dataclass with all fields in src/lazyclaude/models/customization.py
-- [ ] T009 [P] Create SlashCommandMetadata dataclass in src/lazyclaude/models/customization.py
-- [ ] T010 [P] Create SubagentMetadata dataclass in src/lazyclaude/models/customization.py
-- [ ] T011 [P] Create SkillMetadata dataclass in src/lazyclaude/models/customization.py
-- [ ] T012 [P] Create MCPServerMetadata dataclass in src/lazyclaude/models/customization.py
-- [ ] T013 Create src/lazyclaude/models/__init__.py with all model exports
-- [ ] T014 Create ICustomizationParser base interface in src/lazyclaude/services/parsers/__init__.py
-- [ ] T015 Implement frontmatter parsing utility in src/lazyclaude/services/parsers/__init__.py
-- [ ] T016 [P] Implement SlashCommandParser in src/lazyclaude/services/parsers/slash_command.py
-- [ ] T017 [P] Implement SubagentParser in src/lazyclaude/services/parsers/subagent.py
-- [ ] T018 [P] Implement SkillParser in src/lazyclaude/services/parsers/skill.py
-- [ ] T019 [P] Implement MemoryFileParser in src/lazyclaude/services/parsers/memory_file.py
-- [ ] T020 [P] Implement MCPParser in src/lazyclaude/services/parsers/mcp.py
-- [ ] T021 Implement IConfigDiscoveryService interface in src/lazyclaude/services/discovery.py
-- [ ] T022 Implement ConfigDiscoveryService with all parsers in src/lazyclaude/services/discovery.py
-- [ ] T023 Create src/lazyclaude/services/__init__.py with service exports
+- [x] T006 [P] Create ConfigLevel enum in src/lazyclaude/models/customization.py
+- [x] T007 [P] Create CustomizationType enum in src/lazyclaude/models/customization.py
+- [x] T008 Create Customization dataclass with all fields in src/lazyclaude/models/customization.py
+- [x] T009 [P] Create SlashCommandMetadata dataclass in src/lazyclaude/models/customization.py
+- [x] T010 [P] Create SubagentMetadata dataclass in src/lazyclaude/models/customization.py
+- [x] T011 [P] Create SkillMetadata dataclass in src/lazyclaude/models/customization.py
+- [x] T012 [P] Create MCPServerMetadata dataclass in src/lazyclaude/models/customization.py
+- [x] T013 Create src/lazyclaude/models/__init__.py with all model exports
+- [x] T014 Create ICustomizationParser base interface in src/lazyclaude/services/parsers/__init__.py
+- [x] T015 Implement frontmatter parsing utility in src/lazyclaude/services/parsers/__init__.py
+- [x] T016 [P] Implement SlashCommandParser in src/lazyclaude/services/parsers/slash_command.py
+- [x] T017 [P] Implement SubagentParser in src/lazyclaude/services/parsers/subagent.py
+- [x] T018 [P] Implement SkillParser in src/lazyclaude/services/parsers/skill.py
+- [x] T019 [P] Implement MemoryFileParser in src/lazyclaude/services/parsers/memory_file.py
+- [x] T020 [P] Implement MCPParser in src/lazyclaude/services/parsers/mcp.py
+- [x] T021 Implement IConfigDiscoveryService interface in src/lazyclaude/services/discovery.py
+- [x] T022 Implement ConfigDiscoveryService with all parsers in src/lazyclaude/services/discovery.py
+- [x] T023 Create src/lazyclaude/services/__init__.py with service exports
 
 **Checkpoint**: Foundation ready - `ConfigDiscoveryService().discover_all()` returns customizations
 
@@ -73,21 +73,21 @@ Based on plan.md structure:
 
 ### Implementation for User Story 1
 
-- [ ] T024 [P] [US1] Create base TypePanel widget in src/lazyclaude/widgets/type_panel.py
-- [ ] T025 [P] [US1] Create base DetailPane widget (empty state) in src/lazyclaude/widgets/detail_pane.py
-- [ ] T026 [US1] Create main LazyClaude App class with compose() in src/lazyclaude/app.py
-- [ ] T027 [US1] Implement 5-panel layout (Slash Commands, Subagents, Skills, Memory Files, MCPs) in src/lazyclaude/app.py
-- [ ] T028 [US1] Create app.tcss with lazygit-style panel layout in src/lazyclaude/styles/app.tcss
-- [ ] T029 [US1] Implement startup config detection (.claude/ vs ~/.claude/) in src/lazyclaude/app.py
-- [ ] T030 [US1] Add j/k navigation bindings to TypePanel in src/lazyclaude/widgets/type_panel.py
-- [ ] T031 [US1] Add Tab panel switching bindings in src/lazyclaude/app.py
-- [ ] T032 [US1] Add visual level indicators [U]/[P]/[L] to TypePanel items in src/lazyclaude/widgets/type_panel.py
-- [ ] T033 [US1] Implement panel header with item count in src/lazyclaude/widgets/type_panel.py
-- [ ] T034 [US1] Add Footer widget with keybinding hints in src/lazyclaude/app.py
-- [ ] T035 [US1] Add global q (quit), ? (help), R (refresh) bindings in src/lazyclaude/app.py
-- [ ] T036 [US1] Implement empty state message for panels with no items in src/lazyclaude/widgets/type_panel.py
-- [ ] T037 [US1] Add error indicator for malformed customizations in src/lazyclaude/widgets/type_panel.py
-- [ ] T038 [US1] Style active panel border (bold/colored) in src/lazyclaude/styles/app.tcss
+- [x] T024 [P] [US1] Create base TypePanel widget in src/lazyclaude/widgets/type_panel.py
+- [x] T025 [P] [US1] Create base DetailPane widget (empty state) in src/lazyclaude/widgets/detail_pane.py
+- [x] T026 [US1] Create main LazyClaude App class with compose() in src/lazyclaude/app.py
+- [x] T027 [US1] Implement 5-panel layout (Slash Commands, Subagents, Skills, Memory Files, MCPs) in src/lazyclaude/app.py
+- [x] T028 [US1] Create app.tcss with lazygit-style panel layout in src/lazyclaude/styles/app.tcss
+- [x] T029 [US1] Implement startup config detection (.claude/ vs ~/.claude/) in src/lazyclaude/app.py
+- [x] T030 [US1] Add j/k navigation bindings to TypePanel in src/lazyclaude/widgets/type_panel.py
+- [x] T031 [US1] Add Tab panel switching bindings in src/lazyclaude/app.py
+- [x] T032 [US1] Add visual level indicators [U]/[P]/[L] to TypePanel items in src/lazyclaude/widgets/type_panel.py
+- [x] T033 [US1] Implement panel header with item count in src/lazyclaude/widgets/type_panel.py
+- [x] T034 [US1] Add Footer widget with keybinding hints in src/lazyclaude/app.py
+- [x] T035 [US1] Add global q (quit), ? (help), R (refresh) bindings in src/lazyclaude/app.py
+- [x] T036 [US1] Implement empty state message for panels with no items in src/lazyclaude/widgets/type_panel.py
+- [x] T037 [US1] Add error indicator for malformed customizations in src/lazyclaude/widgets/type_panel.py
+- [x] T038 [US1] Style active panel border (bold/colored) in src/lazyclaude/styles/app.tcss
 
 **Checkpoint**: User Story 1 complete - app launches with all customizations visible, keyboard navigation works
 
@@ -101,16 +101,16 @@ Based on plan.md structure:
 
 ### Implementation for User Story 2
 
-- [ ] T039 [US2] Implement SelectionChanged message in src/lazyclaude/widgets/type_panel.py
-- [ ] T040 [US2] Implement DrillDown message on Enter key in src/lazyclaude/widgets/type_panel.py
-- [ ] T041 [US2] Wire SelectionChanged to update DetailPane preview in src/lazyclaude/app.py
-- [ ] T042 [US2] Implement full detail view in DetailPane in src/lazyclaude/widgets/detail_pane.py
-- [ ] T043 [US2] Add metadata display (level, path, description) to DetailPane in src/lazyclaude/widgets/detail_pane.py
-- [ ] T044 [US2] Add content preview with syntax highlighting to DetailPane in src/lazyclaude/widgets/detail_pane.py
-- [ ] T045 [US2] Implement content scrolling (j/k/g/G) in DetailPane in src/lazyclaude/widgets/detail_pane.py
-- [ ] T046 [US2] Implement Esc to return focus to TypePanel in src/lazyclaude/app.py
-- [ ] T047 [US2] Show error details when customization has error in src/lazyclaude/widgets/detail_pane.py
-- [ ] T048 [US2] Add truncation indicator for long content in src/lazyclaude/widgets/detail_pane.py
+- [x] T039 [US2] Implement SelectionChanged message in src/lazyclaude/widgets/type_panel.py
+- [x] T040 [US2] Implement DrillDown message on Enter key in src/lazyclaude/widgets/type_panel.py
+- [x] T041 [US2] Wire SelectionChanged to update DetailPane preview in src/lazyclaude/app.py
+- [x] T042 [US2] Implement full detail view in DetailPane in src/lazyclaude/widgets/detail_pane.py
+- [x] T043 [US2] Add metadata display (level, path, description) to DetailPane in src/lazyclaude/widgets/detail_pane.py
+- [x] T044 [US2] Add content preview with syntax highlighting to DetailPane in src/lazyclaude/widgets/detail_pane.py
+- [x] T045 [US2] Implement content scrolling (j/k/g/G) in DetailPane in src/lazyclaude/widgets/detail_pane.py
+- [x] T046 [US2] Implement Esc to return focus to TypePanel in src/lazyclaude/app.py
+- [x] T047 [US2] Show error details when customization has error in src/lazyclaude/widgets/detail_pane.py
+- [x] T048 [US2] Add truncation indicator for long content in src/lazyclaude/widgets/detail_pane.py
 
 **Checkpoint**: User Story 2 complete - drill-down works, details visible, Esc returns to list
 
@@ -124,13 +124,13 @@ Based on plan.md structure:
 
 ### Implementation for User Story 3
 
-- [ ] T049 [US3] Implement IFilterService interface in src/lazyclaude/services/filter.py
-- [ ] T050 [US3] Implement FilterService with level filtering in src/lazyclaude/services/filter.py
-- [ ] T051 [US3] Add LevelFilterChanged message in src/lazyclaude/app.py
-- [ ] T052 [US3] Add 1 (All), 2 (User), 3 (Project) keybindings in src/lazyclaude/app.py
-- [ ] T053 [US3] Wire level filter to update all TypePanels in src/lazyclaude/app.py
-- [ ] T054 [US3] Update status bar to show current level filter in src/lazyclaude/app.py
-- [ ] T055 [US3] Show "No items at this level" message when filtered list empty in src/lazyclaude/widgets/type_panel.py
+- [x] T049 [US3] Implement IFilterService interface in src/lazyclaude/services/filter.py
+- [x] T050 [US3] Implement FilterService with level filtering in src/lazyclaude/services/filter.py
+- [x] T051 [US3] Add LevelFilterChanged message in src/lazyclaude/app.py
+- [x] T052 [US3] Add 1 (All), 2 (User), 3 (Project) keybindings in src/lazyclaude/app.py
+- [x] T053 [US3] Wire level filter to update all TypePanels in src/lazyclaude/app.py
+- [x] T054 [US3] Update status bar to show current level filter in src/lazyclaude/app.py
+- [x] T055 [US3] Show "No items at this level" message when filtered list empty in src/lazyclaude/widgets/type_panel.py
 
 **Checkpoint**: User Story 3 complete - level switching works, filter state visible in status bar
 
@@ -144,16 +144,16 @@ Based on plan.md structure:
 
 ### Implementation for User Story 4
 
-- [ ] T056 [P] [US4] Create FilterInput widget in src/lazyclaude/widgets/filter_input.py
-- [ ] T057 [US4] Extend FilterService with text search in src/lazyclaude/services/filter.py
-- [ ] T058 [US4] Add SearchFilterChanged message in src/lazyclaude/app.py
-- [ ] T059 [US4] Add / keybinding to activate filter mode in src/lazyclaude/app.py
-- [ ] T060 [US4] Wire FilterInput to FilterService in src/lazyclaude/app.py
-- [ ] T061 [US4] Implement real-time filtering as user types in src/lazyclaude/app.py
-- [ ] T062 [US4] Implement Esc to clear filter and hide FilterInput in src/lazyclaude/app.py
-- [ ] T063 [US4] Show "No matches" message when search returns empty in src/lazyclaude/widgets/type_panel.py
-- [ ] T064 [US4] Update status bar to show active search query in src/lazyclaude/app.py
-- [ ] T065 [US4] Style FilterInput widget in src/lazyclaude/styles/app.tcss
+- [x] T056 [P] [US4] Create FilterInput widget in src/lazyclaude/widgets/filter_input.py
+- [x] T057 [US4] Extend FilterService with text search in src/lazyclaude/services/filter.py
+- [x] T058 [US4] Add SearchFilterChanged message in src/lazyclaude/app.py
+- [x] T059 [US4] Add / keybinding to activate filter mode in src/lazyclaude/app.py
+- [x] T060 [US4] Wire FilterInput to FilterService in src/lazyclaude/app.py
+- [x] T061 [US4] Implement real-time filtering as user types in src/lazyclaude/app.py
+- [x] T062 [US4] Implement Esc to clear filter and hide FilterInput in src/lazyclaude/app.py
+- [x] T063 [US4] Show "No matches" message when search returns empty in src/lazyclaude/widgets/type_panel.py
+- [x] T064 [US4] Update status bar to show active search query in src/lazyclaude/app.py
+- [x] T065 [US4] Style FilterInput widget in src/lazyclaude/styles/app.tcss
 
 **Checkpoint**: User Story 4 complete - search works, real-time filtering, Esc clears
 
@@ -163,14 +163,14 @@ Based on plan.md structure:
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T066 Implement create_app() factory function in src/lazyclaude/app.py
-- [ ] T067 Add CLI argument parsing for target directory in src/lazyclaude/__main__.py
-- [ ] T068 Add --version flag support in src/lazyclaude/__main__.py
-- [ ] T069 Implement help overlay triggered by ? key in src/lazyclaude/app.py
-- [ ] T070 Add g/G keybindings for go to top/bottom in TypePanel in src/lazyclaude/widgets/type_panel.py
-- [ ] T071 Verify all keybindings match constitution table in src/lazyclaude/app.py
-- [ ] T072 Run quickstart.md validation (uv sync, uv run lazyclaude)
-- [ ] T073 Performance check: verify <1s startup, <100ms filter response
+- [x] T066 Implement create_app() factory function in src/lazyclaude/app.py
+- [x] T067 Add CLI argument parsing for target directory in src/lazyclaude/__main__.py
+- [x] T068 Add --version flag support in src/lazyclaude/__main__.py
+- [x] T069 Implement help overlay triggered by ? key in src/lazyclaude/app.py
+- [x] T070 Add g/G keybindings for go to top/bottom in TypePanel in src/lazyclaude/widgets/type_panel.py
+- [x] T071 Verify all keybindings match constitution table in src/lazyclaude/app.py
+- [x] T072 Run quickstart.md validation (uv sync, uv run lazyclaude)
+- [x] T073 Performance check: verify <1s startup, <100ms filter response
 
 ---
 
@@ -296,3 +296,20 @@ Excludes (for later):
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Spec does not request tests - add in Polish phase if needed
+
+---
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| **Total Tasks** | 73 |
+| **Phase 1 (Setup)** | 5 tasks |
+| **Phase 2 (Foundational)** | 18 tasks |
+| **User Story 1 (P1)** | 15 tasks |
+| **User Story 2 (P2)** | 10 tasks |
+| **User Story 3 (P2)** | 7 tasks |
+| **User Story 4 (P3)** | 10 tasks |
+| **Polish** | 8 tasks |
+| **Parallel Opportunities** | 17 tasks marked [P] |
+| **MVP Scope** | Setup + Foundational + US1 (38 tasks) |

@@ -1,0 +1,295 @@
+"""Main LazyClaude TUI Application."""
+
+from pathlib import Path
+
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container
+from textual.widgets import Footer, Static
+
+from lazyclaude.models.customization import (
+    ConfigLevel,
+    Customization,
+    CustomizationType,
+)
+from lazyclaude.services.discovery import ConfigDiscoveryService
+from lazyclaude.services.filter import FilterService
+from lazyclaude.widgets.detail_pane import DetailPane
+from lazyclaude.widgets.filter_input import FilterInput
+from lazyclaude.widgets.type_panel import TypePanel
+
+
+class LazyClaude(App):
+    """A lazygit-style TUI for visualizing Claude Code customizations."""
+
+    CSS_PATH = "styles/app.tcss"
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+        Binding("?", "toggle_help", "Help"),
+        Binding("R", "refresh", "Refresh", key_display="shift+r"),
+        Binding("tab", "focus_next_panel", "Next Panel", show=False),
+        Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
+        Binding("escape", "back", "Back", show=False),
+        Binding("1", "filter_all", "All"),
+        Binding("2", "filter_user", "User"),
+        Binding("3", "filter_project", "Project"),
+        Binding("/", "search", "Search"),
+    ]
+
+    TITLE = "LazyClaude"
+    SUB_TITLE = "Claude Code Customization Viewer"
+
+    def __init__(
+        self,
+        discovery_service: ConfigDiscoveryService | None = None,
+        user_config_path: Path | None = None,
+        project_config_path: Path | None = None,
+    ) -> None:
+        """Initialize LazyClaude application."""
+        super().__init__()
+        self._discovery_service = discovery_service or ConfigDiscoveryService(
+            user_config_path=user_config_path,
+            project_config_path=project_config_path,
+        )
+        self._filter_service = FilterService()
+        self._customizations: list[Customization] = []
+        self._level_filter: ConfigLevel | None = None
+        self._search_query: str = ""
+        self._panels: list[TypePanel] = []
+        self._detail_pane: DetailPane | None = None
+        self._filter_input: FilterInput | None = None
+        self._help_visible = False
+
+    def compose(self) -> ComposeResult:
+        """Compose the application layout."""
+        with Container(id="sidebar"):
+            for ctype in CustomizationType:
+                panel = TypePanel(ctype, id=f"panel-{ctype.name.lower()}")
+                self._panels.append(panel)
+                yield panel
+
+        self._detail_pane = DetailPane(id="detail-pane")
+        yield self._detail_pane
+
+        self._filter_input = FilterInput(id="filter-input")
+        yield self._filter_input
+
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Handle mount event - load customizations."""
+        self._load_customizations()
+        if self._panels:
+            self._panels[0].focus()
+
+    def _load_customizations(self) -> None:
+        """Load customizations from discovery service."""
+        self._customizations = self._discovery_service.discover_all()
+        self._update_panels()
+
+    def _update_panels(self) -> None:
+        """Update all panels with filtered customizations."""
+        filtered = self._get_filtered_customizations()
+        for panel in self._panels:
+            panel.set_customizations(filtered)
+
+    def _get_filtered_customizations(self) -> list[Customization]:
+        """Get customizations filtered by current level and search query."""
+        return self._filter_service.filter(
+            self._customizations,
+            query=self._search_query,
+            level=self._level_filter,
+        )
+
+    def _update_subtitle(self) -> None:
+        """Update subtitle to reflect current filter state."""
+        parts = []
+        if self._level_filter == ConfigLevel.USER:
+            parts.append("User Level")
+        elif self._level_filter == ConfigLevel.PROJECT:
+            parts.append("Project Level")
+        else:
+            parts.append("All Levels")
+
+        if self._search_query:
+            parts.append(f'Search: "{self._search_query}"')
+
+        self.sub_title = " | ".join(parts)
+
+    def on_type_panel_selection_changed(
+        self, message: TypePanel.SelectionChanged
+    ) -> None:
+        """Handle selection change in a type panel."""
+        if self._detail_pane:
+            self._detail_pane.customization = message.customization
+
+    def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
+        """Handle drill down into a customization."""
+        if self._detail_pane:
+            self._detail_pane.customization = message.customization
+            self._detail_pane.focus()
+
+    def action_quit(self) -> None:
+        """Quit the application."""
+        self.exit()
+
+    def action_refresh(self) -> None:
+        """Refresh customizations from disk."""
+        self._customizations = self._discovery_service.refresh()
+        self._update_panels()
+
+    def action_back(self) -> None:
+        """Go back - return focus to panel from detail pane."""
+        if self._detail_pane and self._detail_pane.has_focus:
+            focused_panel = self._get_focused_panel()
+            if focused_panel:
+                focused_panel.focus()
+            elif self._panels:
+                self._panels[0].focus()
+
+    def action_focus_next_panel(self) -> None:
+        """Focus the next panel."""
+        current = self._get_focused_panel_index()
+        if current is not None and current < len(self._panels) - 1:
+            self._panels[current + 1].focus()
+        elif self._panels:
+            self._panels[0].focus()
+
+    def action_focus_previous_panel(self) -> None:
+        """Focus the previous panel."""
+        current = self._get_focused_panel_index()
+        if current is not None and current > 0:
+            self._panels[current - 1].focus()
+        elif self._panels:
+            self._panels[-1].focus()
+
+    def _get_focused_panel(self) -> TypePanel | None:
+        """Get the currently focused panel."""
+        for panel in self._panels:
+            if panel.has_focus:
+                return panel
+        return None
+
+    def _get_focused_panel_index(self) -> int | None:
+        """Get the index of the currently focused panel."""
+        for i, panel in enumerate(self._panels):
+            if panel.has_focus:
+                return i
+        return None
+
+    def action_filter_all(self) -> None:
+        """Show all customizations (clear level filter)."""
+        self._level_filter = None
+        self._update_panels()
+        self._update_subtitle()
+
+    def action_filter_user(self) -> None:
+        """Show only user-level customizations."""
+        self._level_filter = ConfigLevel.USER
+        self._update_panels()
+        self._update_subtitle()
+
+    def action_filter_project(self) -> None:
+        """Show only project-level customizations."""
+        self._level_filter = ConfigLevel.PROJECT
+        self._update_panels()
+        self._update_subtitle()
+
+    def action_search(self) -> None:
+        """Activate search mode."""
+        if self._filter_input:
+            self._filter_input.show()
+
+    def on_filter_input_filter_changed(
+        self, message: FilterInput.FilterChanged
+    ) -> None:
+        """Handle filter query changes (real-time filtering)."""
+        self._search_query = message.query
+        self._update_panels()
+        self._update_subtitle()
+
+    def on_filter_input_filter_cancelled(
+        self, message: FilterInput.FilterCancelled  # noqa: ARG002
+    ) -> None:
+        """Handle filter cancellation."""
+        self._search_query = ""
+        self._update_panels()
+        self._update_subtitle()
+        if self._panels:
+            self._panels[0].focus()
+
+    def on_filter_input_filter_applied(
+        self, message: FilterInput.FilterApplied  # noqa: ARG002
+    ) -> None:
+        """Handle filter application (Enter key)."""
+        if self._filter_input:
+            self._filter_input.hide()
+        if self._panels:
+            self._panels[0].focus()
+
+    def action_toggle_help(self) -> None:
+        """Toggle help overlay visibility."""
+        if self._help_visible:
+            self._hide_help()
+        else:
+            self._show_help()
+
+    def _show_help(self) -> None:
+        """Show help overlay."""
+        help_content = """[bold]LazyClaude Help[/]
+
+[bold]Navigation[/]
+  j/k or arrows  Move up/down in list
+  g/G            Go to top/bottom
+  Tab            Switch between panels
+  Enter          View details
+  Esc            Go back
+
+[bold]Filtering[/]
+  /              Search by name/description
+  1              Show all levels
+  2              Show user-level only
+  3              Show project-level only
+
+[bold]Actions[/]
+  R              Refresh from disk
+  ?              Toggle this help
+  q              Quit
+
+[dim]Press ? or Esc to close[/]"""
+
+        if not self.query("#help-overlay"):
+            help_widget = Static(help_content, id="help-overlay")
+            self.mount(help_widget)
+            self._help_visible = True
+
+    def _hide_help(self) -> None:
+        """Hide help overlay."""
+        try:
+            help_widget = self.query_one("#help-overlay")
+            help_widget.remove()
+            self._help_visible = False
+        except Exception:
+            pass
+
+
+def create_app(
+    user_config_path: Path | None = None,
+    project_config_path: Path | None = None,
+) -> LazyClaude:
+    """
+    Create application with all dependencies wired.
+
+    Args:
+        user_config_path: Override for ~/.claude (testing)
+        project_config_path: Override for ./.claude (testing)
+
+    Returns:
+        Configured LazyClaude application instance.
+    """
+    discovery_service = ConfigDiscoveryService(
+        user_config_path=user_config_path,
+        project_config_path=project_config_path,
+    )
+    return LazyClaude(discovery_service=discovery_service)

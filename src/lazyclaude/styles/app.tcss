@@ -1,0 +1,91 @@
+/* LazyClaude TUI Application Styles */
+/* Lazygit-inspired panel layout */
+
+Screen {
+    layout: grid;
+    grid-size: 2;
+    grid-columns: 1fr 2fr;
+    background: $surface;
+}
+
+#sidebar {
+    layout: vertical;
+    height: 100%;
+}
+
+#detail-pane {
+    height: 100%;
+}
+
+/* Type Panels */
+TypePanel {
+    height: auto;
+    min-height: 3;
+    max-height: 10;
+    border: solid $primary;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+TypePanel:focus {
+    border: double $accent;
+}
+
+TypePanel:focus-within {
+    border: double $accent;
+}
+
+TypePanel .items-container {
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+TypePanel .item {
+    height: 1;
+    width: 100%;
+}
+
+TypePanel .item-selected {
+    background: $accent;
+    text-style: bold;
+}
+
+/* Detail Pane */
+DetailPane {
+    border: solid $primary;
+    padding: 1;
+    overflow-y: auto;
+}
+
+DetailPane:focus {
+    border: double $accent;
+}
+
+/* Footer */
+Footer {
+    background: $primary;
+    color: $text;
+}
+
+/* Filter Input */
+FilterInput {
+    dock: bottom;
+    height: 3;
+    border: solid $accent;
+    padding: 0 1;
+}
+
+FilterInput:focus {
+    border: double $accent;
+}
+
+/* Help Overlay */
+#help-overlay {
+    align: center middle;
+    width: 60;
+    height: auto;
+    max-height: 80%;
+    border: double $accent;
+    background: $surface;
+    padding: 1 2;
+}
