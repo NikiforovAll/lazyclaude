@@ -1,0 +1,208 @@
+<!--
+  ============================================================================
+  SYNC IMPACT REPORT
+  ============================================================================
+  Version Change: 0.0.0 → 1.0.0 (MAJOR - initial constitution)
+
+  Modified Principles: N/A (initial creation)
+
+  Added Sections:
+    - Core Principles (5 principles):
+      I. Keyboard-First Ergonomics
+      II. Lazygit-Inspired Panel Layout
+      III. Contextual Navigation
+      IV. Modal Minimalism
+      V. Textual Framework Integration
+    - UI/UX Constraints
+    - Development Workflow
+    - Governance
+
+  Removed Sections: N/A (initial creation)
+
+  Templates Requiring Updates:
+    - .specify/templates/plan-template.md: ✅ updated (added Constitution Check gates)
+    - .specify/templates/spec-template.md: ✅ no changes required
+    - .specify/templates/tasks-template.md: ✅ no changes required
+    - .specify/templates/checklist-template.md: ✅ no changes required
+    - .specify/templates/agent-file-template.md: ✅ no changes required
+
+  Follow-up TODOs: None
+  ============================================================================
+-->
+
+# LazyClaude Constitution
+
+## Core Principles
+
+### I. Keyboard-First Ergonomics
+
+All functionality MUST be accessible via keyboard without requiring mouse interaction.
+The design philosophy prioritizes "keyboard-first" interaction, eliminating reliance on
+menu navigation for frequent operations.
+
+**Non-Negotiable Rules**:
+
+- Every user action MUST have a keyboard shortcut
+- Single-letter commands for common actions (following lazygit convention)
+- Vim-like navigation MUST be supported (`h/j/k/l` alongside arrow keys)
+- `<Esc>` MUST always return to parent context or cancel current operation
+- `<Enter>` MUST always confirm or drill into selected item
+- `/` MUST activate filter/search mode
+- `?` MUST display contextual help showing available keybindings
+
+**Rationale**: CLI power users expect keyboard-driven workflows. Mouse-dependent
+interfaces break flow and reduce productivity.
+
+### II. Lazygit-Inspired Panel Layout
+
+The application MUST implement a multi-panel layout mirroring lazygit's structure,
+with panels for distinct functional areas that users can navigate between.
+
+**Non-Negotiable Rules**:
+
+- Panel layout MUST be clearly divided with visible boundaries
+- Focus indicator MUST clearly show which panel is active
+- `+` and `_` keys SHOULD cycle between panel expansion modes
+- Each panel MUST have contextual keybindings that activate when focused
+- Global keybindings (`q` quit, `?` help, `R` refresh) MUST work from any panel
+- Panel navigation keys MUST be consistent (Tab or number keys to switch panels)
+
+**Rationale**: Multi-panel layouts enable users to see multiple contexts simultaneously
+while maintaining clear separation of concerns.
+
+### III. Contextual Navigation
+
+Navigation MUST be hierarchical and contextual, allowing users to drill down into
+items and return to parent views seamlessly.
+
+**Non-Negotiable Rules**:
+
+- `<Enter>` drills into selected items (e.g., selecting a commit shows its files)
+- `<Esc>` returns to parent view without side effects
+- Breadcrumb or status line MUST indicate current navigation depth
+- Range selection MUST be supported via `v` key or shift+arrow combinations
+- Filter mode (`/`) MUST narrow visible content without losing context
+
+**Rationale**: Users need to explore data hierarchically while maintaining orientation
+within the application structure.
+
+### IV. Modal Minimalism
+
+The interface MUST be primarily non-modal for standard navigation, with modal dialogs
+reserved only for complex operations requiring multiple inputs or confirmations.
+
+**Non-Negotiable Rules**:
+
+- Standard navigation and common actions MUST NOT require entering a mode
+- Modal dialogs MUST only appear for:
+  - Operations with multiple options (e.g., rebase menu)
+  - Destructive operations requiring confirmation
+  - Multi-field input forms
+- Modals MUST be dismissible via `<Esc>`
+- Uppercase keys MAY present options (e.g., `d` executes, `D` shows options menu)
+
+**Rationale**: Modal interfaces disrupt workflow. The hybrid approach provides power
+for complex operations while maintaining flow for common tasks.
+
+### V. Textual Framework Integration
+
+The application MUST be built using the Textual framework, leveraging its widget system,
+CSS-based styling, and testing infrastructure.
+
+**Non-Negotiable Rules**:
+
+- All UI components MUST be Textual widgets or extend from them
+- Layout MUST use Textual's CSS system for responsive design
+- Custom keybindings MUST integrate with Textual's event system
+- Application MUST support the Command Palette (`Ctrl+P`) for discoverability
+- Components MUST be de-coupled for testability
+- All widgets MUST be testable using Textual's testing framework
+
+**Rationale**: Textual provides a mature foundation for building complex TUIs with
+proper testing support. Fighting the framework leads to maintenance burden.
+
+## UI/UX Constraints
+
+**Visual Design**:
+
+- Panels MUST have visible borders distinguishing them from each other
+- Active panel MUST have a distinct border style (e.g., bold or colored)
+- Status bar MUST display current mode, keybinding hints, and navigation context
+- Color scheme MUST be consistent and support terminal color capabilities
+- Text truncation with ellipsis for long content that doesn't fit
+
+**Keybinding Consistency** (following lazygit conventions):
+
+| Key | Action | Scope |
+|-----|--------|-------|
+| `q` | Quit | Global |
+| `?` | Show help | Global |
+| `R` | Refresh | Global |
+| `/` | Filter/Search | Global |
+| `<Enter>` | Confirm/Drill down | Context |
+| `<Esc>` | Cancel/Back | Context |
+| `j`/`<Down>` | Move down | List |
+| `k`/`<Up>` | Move up | List |
+| `h`/`<Left>` | Scroll left/Collapse | Context |
+| `l`/`<Right>` | Scroll right/Expand | Context |
+| `g`/`G` | Go to top/bottom | List |
+| `<PgUp>`/`<PgDn>` | Page scroll | List |
+
+**Accessibility**:
+
+- High contrast mode MUST be supported
+- Keybindings SHOULD be customizable via configuration file
+- Status messages MUST be readable (minimum 2 second display for transient messages)
+
+## Development Workflow
+
+**Code Organization**:
+
+- Single Python package with clear module boundaries
+- Widgets in dedicated `widgets/` directory
+- Keybinding handlers in `keybindings/` directory
+- Business logic separated from UI code in `services/` directory
+- CSS styles in dedicated `.css` or `.tcss` files
+
+**Testing Requirements**:
+
+- All widgets MUST have corresponding tests using Textual's test framework
+- Keybinding handlers MUST be testable independently of UI
+- Integration tests MUST verify panel navigation and focus management
+- Snapshot tests recommended for visual regression testing
+
+**Quality Gates**:
+
+- Type hints required for all public functions
+- Linting via ruff or flake8
+- Formatting via black or ruff format
+- Pre-commit hooks enforced
+
+## Governance
+
+This constitution supersedes all other design and development practices for the
+LazyClaude project. All features, PRs, and design decisions MUST comply with
+these principles.
+
+**Amendment Procedure**:
+
+1. Proposed changes MUST be documented with rationale
+2. Changes MUST NOT violate the core ergonomics philosophy (keyboard-first, lazygit-like)
+3. MAJOR changes (principle removal/redefinition) require explicit stakeholder approval
+4. MINOR changes (new principles/expanded guidance) require documentation review
+5. PATCH changes (clarifications/typos) can be made with standard PR review
+
+**Versioning Policy**:
+
+- MAJOR: Backward-incompatible principle changes or removals
+- MINOR: New principles added or existing principles materially expanded
+- PATCH: Clarifications, wording improvements, non-semantic refinements
+
+**Compliance Review**:
+
+- All PRs MUST include a constitution compliance check
+- Code reviews MUST verify keybinding consistency
+- UI changes MUST demonstrate keyboard-only operation
+- New features MUST document their keybindings
+
+**Version**: 1.0.0 | **Ratified**: 2025-12-06 | **Last Amended**: 2025-12-06
