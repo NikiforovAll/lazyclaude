@@ -60,9 +60,7 @@ class SlashCommandParser(ICustomizationParser):
             allowed_tools=parse_tools_list(frontmatter.get("allowed-tools")),
             argument_hint=frontmatter.get("argument-hint"),
             model=frontmatter.get("model"),
-            disable_model_invocation=frontmatter.get(
-                "disable-model-invocation", False
-            ),
+            disable_model_invocation=frontmatter.get("disable-model-invocation", False),
         )
 
         return Customization(

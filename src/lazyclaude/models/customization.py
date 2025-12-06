@@ -23,6 +23,7 @@ class CustomizationType(Enum):
     SKILL = auto()
     MEMORY_FILE = auto()
     MCP = auto()
+    HOOK = auto()
 
 
 @dataclass
@@ -130,4 +131,5 @@ class Customization:
             CustomizationType.SKILL: "Skill",
             CustomizationType.MEMORY_FILE: "Memory File",
             CustomizationType.MCP: "MCP Server",
+            CustomizationType.HOOK: "Hook",
         }[self.type]

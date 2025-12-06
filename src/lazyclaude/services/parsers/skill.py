@@ -29,10 +29,7 @@ class SkillParser(ICustomizationParser):
 
     def can_parse(self, path: Path) -> bool:
         """Check if path is a SKILL.md file in a skill subdirectory."""
-        return (
-            path.name == "SKILL.md"
-            and path.parent.parent == self.skills_dir
-        )
+        return path.name == "SKILL.md" and path.parent.parent == self.skills_dir
 
     def parse(self, path: Path, level: ConfigLevel) -> Customization:
         """Parse a skill SKILL.md file and detect directory contents."""

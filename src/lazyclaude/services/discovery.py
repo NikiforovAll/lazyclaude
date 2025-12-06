@@ -11,6 +11,7 @@ from lazyclaude.models.customization import (
     CustomizationType,
     PluginInfo,
 )
+from lazyclaude.services.parsers.hook import HookParser
 from lazyclaude.services.parsers.mcp import MCPParser
 from lazyclaude.services.parsers.memory_file import MemoryFileParser
 from lazyclaude.services.parsers.skill import SkillParser
@@ -103,6 +104,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         customizations.extend(self._discover_skills())
         customizations.extend(self._discover_memory_files())
         customizations.extend(self._discover_mcps())
+        customizations.extend(self._discover_hooks())
         customizations.extend(self._discover_plugins())
 
         customizations = self._sort_customizations(customizations)
@@ -241,6 +243,27 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         return customizations
 
+    def _discover_hooks(self) -> list[Customization]:
+        """Discover hooks from settings files at user and project levels."""
+        customizations: list[Customization] = []
+        parser = HookParser()
+
+        user_settings = self.user_config_path / "settings.json"
+        if user_settings.is_file():
+            customizations.extend(parser.parse(user_settings, ConfigLevel.USER))
+
+        project_settings = self.project_config_path / "settings.json"
+        if project_settings.is_file():
+            customizations.extend(parser.parse(project_settings, ConfigLevel.PROJECT))
+
+        project_local_settings = self.project_config_path / "settings.local.json"
+        if project_local_settings.is_file():
+            customizations.extend(
+                parser.parse(project_local_settings, ConfigLevel.PROJECT_LOCAL)
+            )
+
+        return customizations
+
     def _discover_plugins(self) -> list[Customization]:
         """Discover customizations from installed and enabled plugins."""
         customizations: list[Customization] = []
@@ -273,6 +296,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
                 self._discover_plugin_skills(install_path, plugin_info)
             )
             customizations.extend(self._discover_plugin_mcps(install_path, plugin_info))
+            customizations.extend(
+                self._discover_plugin_hooks(install_path, plugin_info)
+            )
 
         return customizations
 
@@ -395,6 +421,24 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         parser = MCPParser()
         mcp_customizations = parser.parse(mcp_file, ConfigLevel.PLUGIN)
         for customization in mcp_customizations:
+            customization.plugin_info = plugin_info
+            customizations.append(customization)
+
+        return customizations
+
+    def _discover_plugin_hooks(
+        self, install_path: Path, plugin_info: PluginInfo
+    ) -> list[Customization]:
+        """Discover hook configurations from a plugin."""
+        customizations: list[Customization] = []
+        hooks_file = install_path / "hooks" / "hooks.json"
+
+        if not hooks_file.is_file():
+            return customizations
+
+        parser = HookParser()
+        hook_customizations = parser.parse(hooks_file, ConfigLevel.PLUGIN)
+        for customization in hook_customizations:
             customization.plugin_info = plugin_info
             customizations.append(customization)
 

@@ -48,6 +48,7 @@ class LazyClaude(App):
         Binding("3", "focus_panel_3", "Panel 3", show=False),
         Binding("4", "focus_panel_4", "Panel 4", show=False),
         Binding("5", "focus_panel_5", "Panel 5", show=False),
+        Binding("6", "focus_panel_6", "Panel 6", show=False),
     ]
 
     TITLE = "LazyClaude"
@@ -246,6 +247,10 @@ class LazyClaude(App):
         """Focus panel 5 (MCPs)."""
         self._focus_panel(4)
 
+    def action_focus_panel_6(self) -> None:
+        """Focus panel 6 (Hooks)."""
+        self._focus_panel(5)
+
     def action_focus_main_pane(self) -> None:
         """Focus the main pane (panel 0)."""
         if self._main_pane:
@@ -353,7 +358,7 @@ class LazyClaude(App):
 [bold]Navigation[/]
   j/k or arrows  Move up/down in list
   g/G            Go to top/bottom
-  1-5            Jump to panel by number
+  1-6            Jump to panel by number
   Tab            Switch between panels
   Enter          View details
   Esc            Go back

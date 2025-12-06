@@ -40,7 +40,9 @@ class MainPane(Widget):
         Binding("down", "scroll_down", "Scroll down", show=False),
         Binding("up", "scroll_up", "Scroll up", show=False),
         Binding("g", "scroll_top", "Scroll top", show=False),
-        Binding("G", "scroll_bottom", "Scroll bottom", show=False, key_display="shift+g"),
+        Binding(
+            "G", "scroll_bottom", "Scroll bottom", show=False, key_display="shift+g"
+        ),
     ]
 
     DEFAULT_CSS = """
@@ -149,7 +151,13 @@ class MainPane(Widget):
         lexer_map = {".json": "json"}
         lexer = lexer_map.get(suffix, "text")
 
-        return Syntax(content, lexer, theme=self._get_syntax_theme(), line_numbers=True, word_wrap=True)
+        return Syntax(
+            content,
+            lexer,
+            theme=self._get_syntax_theme(),
+            line_numbers=True,
+            word_wrap=True,
+        )
 
     def on_mount(self) -> None:
         """Handle mount event."""
@@ -182,7 +190,8 @@ class MainPane(Widget):
         self._refresh_display()
 
     def watch_customization(
-        self, customization: Customization | None  # noqa: ARG002
+        self,
+        customization: Customization | None,  # noqa: ARG002
     ) -> None:
         """React to customization changes."""
         self.border_subtitle = self._render_footer()

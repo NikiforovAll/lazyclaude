@@ -106,6 +106,7 @@ class TypePanel(Widget):
             CustomizationType.SKILL: "Skills",
             CustomizationType.MEMORY_FILE: "Memory Files",
             CustomizationType.MCP: "MCPs",
+            CustomizationType.HOOK: "Hooks",
         }[self.customization_type]
 
     @property
@@ -122,7 +123,9 @@ class TypePanel(Widget):
                 yield Static("[dim italic]No items[/]", classes="empty-message")
             else:
                 for i, item in enumerate(self.customizations):
-                    yield Static(self._render_item(i, item), classes="item", id=f"item-{i}")
+                    yield Static(
+                        self._render_item(i, item), classes="item", id=f"item-{i}"
+                    )
 
     def _render_header(self) -> str:
         """Render the panel header with type label."""
@@ -168,12 +171,16 @@ class TypePanel(Widget):
         container = self.query_one(".items-container", VerticalScroll)
         await container.remove_children()
         if not self.customizations:
-            await container.mount(Static("[dim italic]No items[/]", classes="empty-message"))
+            await container.mount(
+                Static("[dim italic]No items[/]", classes="empty-message")
+            )
         else:
             for i, item in enumerate(self.customizations):
                 is_selected = i == self.selected_index and self.is_active
                 classes = "item item-selected" if is_selected else "item"
-                await container.mount(Static(self._render_item(i, item), classes=classes, id=f"item-{i}"))
+                await container.mount(
+                    Static(self._render_item(i, item), classes=classes, id=f"item-{i}")
+                )
         container.scroll_home(animate=False)
 
     def on_mount(self) -> None:
@@ -187,7 +194,9 @@ class TypePanel(Widget):
         """Refresh the panel display (updates existing widgets)."""
         try:
             items = list(self.query(".item"))
-            for i, (item_widget, item) in enumerate(zip(items, self.customizations, strict=False)):
+            for i, (item_widget, item) in enumerate(
+                zip(items, self.customizations, strict=False)
+            ):
                 item_widget.update(self._render_item(i, item))
                 is_selected = i == self.selected_index and self.is_active
                 item_widget.set_class(is_selected, "item-selected")
