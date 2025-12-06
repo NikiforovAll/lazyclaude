@@ -2,6 +2,7 @@
 
 from textual.binding import Binding
 from textual.containers import VerticalScroll
+from textual.events import Click
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -163,7 +164,7 @@ class TypePanel(Widget):
             for i, item in enumerate(self.customizations):
                 is_selected = i == self.selected_index and self.is_active
                 classes = "item item-selected" if is_selected else "item"
-                await container.mount(Static(self._render_item(i, item), classes=classes))
+                await container.mount(Static(self._render_item(i, item), classes=classes, id=f"item-{i}"))
         container.scroll_home(animate=False)
 
     def on_mount(self) -> None:
@@ -194,9 +195,27 @@ class TypePanel(Widget):
         except Exception:
             pass
 
-    def on_click(self) -> None:
-        """Handle click - focus this panel."""
+    def on_click(self, event: Click) -> None:
+        """Handle click - select clicked item and focus panel."""
         self.focus()
+
+        # Find which item was clicked using screen coordinates
+        try:
+            widget, _ = self.screen.get_widget_at(event.screen_x, event.screen_y)
+        except Exception:
+            return
+
+        # Walk up widget tree to find item widget (Static with id "item-{i}")
+        while widget is not None and widget is not self:
+            if widget.id and widget.id.startswith("item-"):
+                try:
+                    index = int(widget.id.split("-")[1])
+                    if 0 <= index < len(self.customizations):
+                        self.selected_index = index
+                except ValueError:
+                    pass
+                break
+            widget = widget.parent
 
     def on_focus(self) -> None:
         """Handle focus event."""
