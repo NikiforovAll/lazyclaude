@@ -27,6 +27,10 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/nikiforovall/lazyclaude"
+Repository = "https://github.com/nikiforovall/lazyclaude"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",

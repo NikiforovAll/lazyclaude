@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LazyClaude is a TUI application for visualizing Claude Code customizations (Slash Commands, Subagents, Skills, Memory Files, MCPs). Built with the Textual framework following lazygit-style keyboard ergonomics.
+LazyClaude is a TUI application for visualizing Claude Code customizations (Slash Commands, Subagents, Skills, Memory Files, MCPs, Hooks). Built with the Textual framework following lazygit-style keyboard ergonomics.
 
 ## Active Technologies
 
@@ -13,40 +13,23 @@ LazyClaude is a TUI application for visualizing Claude Code customizations (Slas
 - **Testing**: pytest, pytest-asyncio, pytest-textual-snapshot
 - **Package Manager**: uv
 
-## Project Structure
-
-```text
-src/lazyclaude/
-├── app.py               # Main Textual App
-├── models/              # Data models (Customization, ConfigLevel, etc.)
-├── services/            # Business logic (discovery, parsing, filtering)
-├── widgets/             # UI components (TypePanel, DetailPane, etc.)
-├── keybindings/         # Keyboard handlers
-└── styles/              # Textual CSS (.tcss files)
-
-tests/
-├── unit/                # Unit tests
-├── integration/         # Integration tests
-└── snapshots/           # Visual regression tests
-```
-
 ## Commands
 
 ```bash
-uv sync                              # Install dependencies
-uv run lazyclaude                    # Run application
-uv run pytest                        # Run all tests
-uv run pytest tests/unit/test_X.py  # Run single test file
-uv run pytest -k "test_name"         # Run tests matching pattern
-uv run ruff check src                # Lint code
-uv run ruff format src               # Format code
+uv sync                                # Install dependencies
+uv run lazyclaude                      # Run application
+uv run pytest                          # Run all tests
+uv run pytest tests/unit/test_X.py    # Run single test file
+uv run pytest -k "test_name"           # Run tests matching pattern
+uv run ruff check src tests            # Lint code
+uv run ruff format src tests           # Format code
+uv run mypy src                        # Type check
 ```
 
 ## Code Style
 
 - Type hints required for all public functions
-- Linting via ruff
-- Formatting via ruff format
+- Linting via ruff, formatting via ruff format
 - No emojis in code/comments
 - Comments explain WHY not WHAT
 
@@ -68,8 +51,12 @@ All code MUST comply with these principles (see `.specify/memory/constitution.md
 | `q` | Quit | Global |
 | `?` | Help | Global |
 | `R` | Refresh | Global |
-| `/` | Filter | Global |
-| `j`/`k` | Navigate | List |
+| `/` | Search | Global |
+| `e` | Open in $EDITOR | Global |
+| `a`/`u`/`p`/`P` | Filter: All/User/Project/Plugin | Global |
+| `1`-`6` | Focus panel by number | Global |
+| `j`/`k` | Navigate up/down | List |
+| `g`/`G` | Go to top/bottom | List |
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
 
@@ -80,15 +67,20 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
                 ↓                                        ↓
          ConfigDiscoveryService                   MainPane updates
                 ↓
-         Parsers (slash_command, subagent, skill, memory_file, mcp)
+         Parsers (slash_command, subagent, skill, memory_file, mcp, hook)
                 ↓
          Customization models
 ```
 
 **Data Flow**:
-1. `ConfigDiscoveryService` discovers files from `~/.claude` (user) and `./.claude` (project)
-2. Type-specific parsers extract frontmatter metadata and content
-3. `Customization` objects are created and passed to `TypePanel` widgets
-4. Selection changes emit messages handled by `App` to update `MainPane`
+1. `ConfigDiscoveryService` discovers files from multiple sources:
+   - User: `~/.claude/` (commands, agents, skills, memory files)
+   - Project: `./.claude/` and project root (CLAUDE.md, .mcp.json)
+   - Plugins: `~/.claude/plugins/` (enabled plugins from installed_plugins.json)
+2. Type-specific parsers in `services/parsers/` extract frontmatter metadata and content
+3. `Customization` objects are created with `ConfigLevel` (USER, PROJECT, PROJECT_LOCAL, PLUGIN)
+4. Selection changes emit `TypePanel.SelectionChanged` messages handled by `App` to update `MainPane`
+
+**CustomizationTypes**: SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 
 **Theme Sync**: App theme (Textual) maps to syntax highlighting theme (Pygments) via `TEXTUAL_TO_PYGMENTS_THEME` in `detail_pane.py`.
