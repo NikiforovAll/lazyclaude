@@ -97,10 +97,11 @@ class MainPane(Widget):
 
     def _update_title(self) -> None:
         """Update border title based on view mode."""
+        accent = self.app.get_css_variables().get("accent", "cyan")
         if self.view_mode == "content":
-            tabs = "[bold green]Content[/] - Metadata"
+            tabs = f"[bold {accent}]Content[/] - Metadata"
         else:
-            tabs = "Content - [bold green]Metadata[/]"
+            tabs = f"Content - [bold {accent}]Metadata[/]"
         self.border_title = f"[0]-{tabs}-"
 
     def watch_view_mode(self, mode: str) -> None:  # noqa: ARG002
