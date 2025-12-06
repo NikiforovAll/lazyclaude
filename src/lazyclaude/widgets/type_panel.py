@@ -27,9 +27,8 @@ class TypePanel(Widget):
 
     DEFAULT_CSS = """
     TypePanel {
-        height: auto;
+        height: 1fr;
         min-height: 3;
-        max-height: 12;
         border: solid $primary;
         padding: 0 1;
         border-title-align: left;
@@ -247,3 +246,11 @@ class TypePanel(Widget):
         """Set the customizations for this panel (filtered by type)."""
         filtered = [c for c in customizations if c.type == self.customization_type]
         self.customizations = filtered
+        self._update_empty_state()
+
+    def _update_empty_state(self) -> None:
+        """Toggle empty class based on item count."""
+        if len(self.customizations) == 0:
+            self.add_class("empty")
+        else:
+            self.remove_class("empty")

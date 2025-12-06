@@ -28,9 +28,8 @@ StatusPanel {
 
 /* Type Panels */
 TypePanel {
-    height: auto;
+    height: 1fr;
     min-height: 3;
-    max-height: 10;
     border: solid $primary;
     padding: 0 1;
     margin-bottom: 1;
@@ -43,6 +42,12 @@ TypePanel:focus {
 
 TypePanel:focus-within {
     border: double $accent;
+}
+
+TypePanel.empty {
+    height: 3;
+    min-height: 3;
+    max-height: 3;
 }
 
 TypePanel .items-container {
