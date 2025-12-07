@@ -85,6 +85,7 @@ def user_mcp_config(fake_home: Path, fs: FakeFilesystem) -> Path:
     )
     return mcp_path
 
+
 @pytest.fixture
 def project_mcp_config(fake_project_root: Path, fs: FakeFilesystem) -> Path:
     """Create project-level MCP config (.mcp.json)."""
@@ -95,6 +96,7 @@ def project_mcp_config(fake_project_root: Path, fs: FakeFilesystem) -> Path:
         read_only=False,
     )
     return mcp_path
+
 
 @pytest.fixture
 def project_config_path(fake_project_root: Path, fs: FakeFilesystem) -> Path:
