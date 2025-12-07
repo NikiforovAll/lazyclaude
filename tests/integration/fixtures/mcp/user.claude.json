@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "user-server": {
+      "type": "stdio",
+      "command": "user-mcp",
+      "args": ["--config", "user"]
+    }
+  }
+}

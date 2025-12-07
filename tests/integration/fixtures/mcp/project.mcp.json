@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "project-server": {
+      "type": "stdio",
+      "command": "project-mcp",
+      "args": ["--verbose"]
+    }
+  }
+}

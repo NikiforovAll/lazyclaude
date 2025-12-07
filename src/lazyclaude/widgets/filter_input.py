@@ -1,5 +1,6 @@
 """FilterInput widget for searching customizations."""
 
+from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.message import Message
 from textual.reactive import reactive
@@ -36,7 +37,7 @@ class FilterInput(Widget):
     }
     """
 
-    query: reactive[str] = reactive("")
+    filter_query: reactive[str] = reactive("")
 
     class FilterChanged(Message):
         """Emitted when filter query changes."""
@@ -67,14 +68,14 @@ class FilterInput(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self._input: Input | None = None
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """Compose the filter input."""
         self._input = Input(placeholder="Filter by name...")
         yield self._input
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input changes."""
-        self.query = event.value
+        self.filter_query = event.value
         self.post_message(self.FilterChanged(event.value))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -101,7 +102,7 @@ class FilterInput(Widget):
         """Clear the filter query."""
         if self._input:
             self._input.value = ""
-        self.query = ""
+        self.filter_query = ""
 
     @property
     def is_visible(self) -> bool:

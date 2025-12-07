@@ -30,7 +30,7 @@ class HookParser(ICustomizationParser):
         """Check if path is a known hook config file."""
         return path.name in self.HOOK_FILE_NAMES
 
-    def parse(self, path: Path, level: ConfigLevel) -> list[Customization]:
+    def parse(self, path: Path, level: ConfigLevel) -> list[Customization]:  # type: ignore[override]
         """
         Parse a configuration file for hooks.
 

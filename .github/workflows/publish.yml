@@ -1,0 +1,18 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Build
+        run: uv build
+      - name: Publish to PyPI
+        run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_KEY }}

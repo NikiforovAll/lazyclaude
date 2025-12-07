@@ -4,6 +4,7 @@ import re
 
 from rich.console import Group, RenderableType
 from rich.syntax import Syntax
+from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -76,11 +77,11 @@ class MainPane(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self.can_focus = True
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """Compose the pane content."""
-        yield Static(self._render_content(), classes="pane-content")
+        yield Static(self._get_renderable(), classes="pane-content")
 
-    def _render_content(self) -> RenderableType:
+    def _get_renderable(self) -> RenderableType:
         """Render content based on current view mode."""
         if self.view_mode == "metadata":
             return self._render_metadata()
@@ -201,7 +202,7 @@ class MainPane(Widget):
         """Refresh the pane display."""
         try:
             content = self.query_one(".pane-content", Static)
-            content.update(self._render_content())
+            content.update(self._get_renderable())
         except Exception:
             pass
 

@@ -162,7 +162,7 @@ class LazyClaude(App):
             self._main_pane.customization = message.customization
             self._main_pane.focus()
 
-    def action_quit(self) -> None:
+    async def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
 
@@ -183,7 +183,7 @@ class LazyClaude(App):
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(file_path)], shell=True)
 
-    def action_back(self) -> None:
+    async def action_back(self) -> None:
         """Go back - return focus to panel from main pane."""
         if self._main_pane and self._main_pane.has_focus:
             focused_panel = self._get_focused_panel()
