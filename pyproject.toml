@@ -59,6 +59,7 @@ packages = ["src/lazyclaude"]
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+exclude = ["src/lazyclaude/_version.py"]
 
 [tool.ruff.lint]
 select = [
