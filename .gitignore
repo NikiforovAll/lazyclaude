@@ -65,3 +65,6 @@ Thumbs.db
 
 # backlog.md special folder
 backlog
+
+# hatch-vcs generated version file
+src/lazyclaude/_version.py

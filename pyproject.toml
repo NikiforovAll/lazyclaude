@@ -1,6 +1,6 @@
 [project]
 name = "lazyclaude"
-version = "0.2.0"
+dynamic = ["version"]
 description = "A lazygit-style TUI for visualizing Claude Code customizations"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -44,8 +44,14 @@ dev = [
 lazyclaude = "lazyclaude.__main__:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/lazyclaude/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lazyclaude"]
