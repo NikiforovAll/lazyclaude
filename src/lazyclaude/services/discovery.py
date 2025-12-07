@@ -310,7 +310,8 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         try:
             data = json.loads(plugins_file.read_text(encoding="utf-8"))
-            return data.get("plugins", {})
+            plugins: dict[str, Any] = data.get("plugins", {})
+            return plugins
         except (json.JSONDecodeError, OSError):
             return {}
 
@@ -322,7 +323,8 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         try:
             data = json.loads(settings_file.read_text(encoding="utf-8"))
-            return data.get("enabledPlugins", {})
+            enabled: dict[str, bool] = data.get("enabledPlugins", {})
+            return enabled
         except (json.JSONDecodeError, OSError):
             return {}
 

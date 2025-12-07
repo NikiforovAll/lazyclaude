@@ -103,4 +103,5 @@ disallow_untyped_defs = true
 dev = [
     "pyfakefs>=5.10.2",
     "ruff>=0.14.8",
+    "types-pyyaml>=6.0.12.20250915",
 ]

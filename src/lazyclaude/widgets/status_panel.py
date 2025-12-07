@@ -1,5 +1,6 @@
 """StatusPanel widget for displaying current configuration status."""
 
+from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
@@ -28,11 +29,11 @@ class StatusPanel(Widget):
     config_path: reactive[str] = reactive("")
     filter_level: reactive[str] = reactive("All")
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """Compose the panel content."""
-        yield Static(self._render_content(), classes="status-content")
+        yield Static(self._get_status_text(), classes="status-content")
 
-    def _render_content(self) -> str:
+    def _get_status_text(self) -> str:
         """Render the status content with path and filter level."""
         return f"{self.config_path} | [bold]{self.filter_level}[/]"
 
@@ -45,7 +46,7 @@ class StatusPanel(Widget):
         if self.is_mounted:
             try:
                 content = self.query_one(".status-content", Static)
-                content.update(self._render_content())
+                content.update(self._get_status_text())
             except Exception:
                 pass
 

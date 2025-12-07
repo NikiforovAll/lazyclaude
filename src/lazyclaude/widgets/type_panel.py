@@ -1,12 +1,19 @@
 """TypePanel widget for displaying customizations of a single type."""
 
+from typing import TYPE_CHECKING, cast
+
+from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
+from textual.dom import DOMNode
 from textual.events import Click
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
+
+if TYPE_CHECKING:
+    from lazyclaude.app import LazyClaude
 
 from lazyclaude.models.customization import Customization, CustomizationType
 
@@ -116,7 +123,7 @@ class TypePanel(Widget):
             return self.customizations[self.selected_index]
         return None
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """Compose the panel content."""
         with VerticalScroll(classes="items-container"):
             if not self.customizations:
@@ -193,11 +200,12 @@ class TypePanel(Widget):
     def _refresh_display(self) -> None:
         """Refresh the panel display (updates existing widgets)."""
         try:
-            items = list(self.query(".item"))
+            items = list(self.query("Static.item"))
             for i, (item_widget, item) in enumerate(
                 zip(items, self.customizations, strict=False)
             ):
-                item_widget.update(self._render_item(i, item))
+                if isinstance(item_widget, Static):
+                    item_widget.update(self._render_item(i, item))
                 is_selected = i == self.selected_index and self.is_active
                 item_widget.set_class(is_selected, "item-selected")
         except Exception:
@@ -220,21 +228,24 @@ class TypePanel(Widget):
 
         # Find which item was clicked using screen coordinates
         try:
-            widget, _ = self.screen.get_widget_at(event.screen_x, event.screen_y)
+            clicked_widget, _ = self.screen.get_widget_at(
+                event.screen_x, event.screen_y
+            )
         except Exception:
             return
 
         # Walk up widget tree to find item widget (Static with id "item-{i}")
-        while widget is not None and widget is not self:
-            if widget.id and widget.id.startswith("item-"):
+        current: DOMNode | None = clicked_widget
+        while current is not None and current is not self:
+            if current.id and current.id.startswith("item-"):
                 try:
-                    index = int(widget.id.split("-")[1])
+                    index = int(current.id.split("-")[1])
                     if 0 <= index < len(self.customizations):
                         self.selected_index = index
                 except ValueError:
                     pass
                 break
-            widget = widget.parent
+            current = current.parent
 
     def on_focus(self) -> None:
         """Handle focus event."""
@@ -274,11 +285,11 @@ class TypePanel(Widget):
 
     def action_focus_next_panel(self) -> None:
         """Delegate to app's focus_next_panel action."""
-        self.app.action_focus_next_panel()
+        cast("LazyClaude", self.app).action_focus_next_panel()
 
     def action_focus_previous_panel(self) -> None:
         """Delegate to app's focus_previous_panel action."""
-        self.app.action_focus_previous_panel()
+        cast("LazyClaude", self.app).action_focus_previous_panel()
 
     def set_customizations(self, customizations: list[Customization]) -> None:
         """Set the customizations for this panel (filtered by type)."""

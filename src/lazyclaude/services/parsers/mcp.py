@@ -27,7 +27,7 @@ class MCPParser(ICustomizationParser):
         """Check if path is a known MCP config file."""
         return path.name in self.MCP_FILE_NAMES
 
-    def parse(self, path: Path, level: ConfigLevel) -> list[Customization]:
+    def parse(self, path: Path, level: ConfigLevel) -> list[Customization]:  # type: ignore[override]
         """
         Parse an MCP configuration file.
 
