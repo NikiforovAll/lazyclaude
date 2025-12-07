@@ -1,9 +1,7 @@
 """Service for discovering Claude Code customizations."""
 
-import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
 from lazyclaude.models.customization import (
     ConfigLevel,
@@ -11,12 +9,39 @@ from lazyclaude.models.customization import (
     CustomizationType,
     PluginInfo,
 )
+from lazyclaude.services.filesystem_scanner import (
+    FilesystemScanner,
+    GlobStrategy,
+    ScanConfig,
+)
 from lazyclaude.services.parsers.hook import HookParser
 from lazyclaude.services.parsers.mcp import MCPParser
 from lazyclaude.services.parsers.memory_file import MemoryFileParser
 from lazyclaude.services.parsers.skill import SkillParser
 from lazyclaude.services.parsers.slash_command import SlashCommandParser
 from lazyclaude.services.parsers.subagent import SubagentParser
+from lazyclaude.services.plugin_loader import PluginLoader
+
+SCAN_CONFIGS = {
+    "slash_commands": ScanConfig(
+        subdir="commands",
+        pattern="*.md",
+        strategy=GlobStrategy.RGLOB,
+        parser_factory=SlashCommandParser,
+    ),
+    "subagents": ScanConfig(
+        subdir="agents",
+        pattern="*.md",
+        strategy=GlobStrategy.GLOB,
+        parser_factory=SubagentParser,
+    ),
+    "skills": ScanConfig(
+        subdir="skills",
+        pattern="SKILL.md",
+        strategy=GlobStrategy.SUBDIR,
+        parser_factory=SkillParser,
+    ),
+}
 
 
 class IConfigDiscoveryService(ABC):
@@ -90,6 +115,8 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             project_config_path.parent if project_config_path else Path.cwd()
         )
 
+        self._scanner = FilesystemScanner()
+        self._plugin_loader = PluginLoader(self.user_config_path)
         self._cache: list[Customization] | None = None
 
     def discover_all(self) -> list[Customization]:
@@ -99,9 +126,18 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         customizations: list[Customization] = []
 
-        customizations.extend(self._discover_slash_commands())
-        customizations.extend(self._discover_subagents())
-        customizations.extend(self._discover_skills())
+        for config in SCAN_CONFIGS.values():
+            customizations.extend(
+                self._scanner.scan_directory(
+                    self.user_config_path, config, ConfigLevel.USER
+                )
+            )
+            customizations.extend(
+                self._scanner.scan_directory(
+                    self.project_config_path, config, ConfigLevel.PROJECT
+                )
+            )
+
         customizations.extend(self._discover_memory_files())
         customizations.extend(self._discover_mcps())
         customizations.extend(self._discover_hooks())
@@ -122,6 +158,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
     def refresh(self) -> list[Customization]:
         """Re-scan all configuration directories and return fresh results."""
         self._cache = None
+        self._plugin_loader.refresh()
         return self.discover_all()
 
     def get_active_config_path(self) -> Path:
@@ -139,64 +176,6 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             customizations,
             key=lambda c: (type_order[c.type], c.name.lower()),
         )
-
-    def _discover_slash_commands(self) -> list[Customization]:
-        """Discover slash commands from user and project levels."""
-        customizations: list[Customization] = []
-
-        user_commands_dir = self.user_config_path / "commands"
-        if user_commands_dir.is_dir():
-            parser = SlashCommandParser(user_commands_dir)
-            for md_file in user_commands_dir.rglob("*.md"):
-                customizations.append(parser.parse(md_file, ConfigLevel.USER))
-
-        project_commands_dir = self.project_config_path / "commands"
-        if project_commands_dir.is_dir():
-            parser = SlashCommandParser(project_commands_dir)
-            for md_file in project_commands_dir.rglob("*.md"):
-                customizations.append(parser.parse(md_file, ConfigLevel.PROJECT))
-
-        return customizations
-
-    def _discover_subagents(self) -> list[Customization]:
-        """Discover subagents from user and project levels."""
-        customizations: list[Customization] = []
-
-        user_agents_dir = self.user_config_path / "agents"
-        if user_agents_dir.is_dir():
-            parser = SubagentParser(user_agents_dir)
-            for md_file in user_agents_dir.glob("*.md"):
-                customizations.append(parser.parse(md_file, ConfigLevel.USER))
-
-        project_agents_dir = self.project_config_path / "agents"
-        if project_agents_dir.is_dir():
-            parser = SubagentParser(project_agents_dir)
-            for md_file in project_agents_dir.glob("*.md"):
-                customizations.append(parser.parse(md_file, ConfigLevel.PROJECT))
-
-        return customizations
-
-    def _discover_skills(self) -> list[Customization]:
-        """Discover skills from user and project levels."""
-        customizations: list[Customization] = []
-
-        user_skills_dir = self.user_config_path / "skills"
-        if user_skills_dir.is_dir():
-            parser = SkillParser(user_skills_dir)
-            for skill_dir in user_skills_dir.iterdir():
-                skill_md = skill_dir / "SKILL.md"
-                if skill_md.is_file():
-                    customizations.append(parser.parse(skill_md, ConfigLevel.USER))
-
-        project_skills_dir = self.project_config_path / "skills"
-        if project_skills_dir.is_dir():
-            parser = SkillParser(project_skills_dir)
-            for skill_dir in project_skills_dir.iterdir():
-                skill_md = skill_dir / "SKILL.md"
-                if skill_md.is_file():
-                    customizations.append(parser.parse(skill_md, ConfigLevel.PROJECT))
-
-        return customizations
 
     def _discover_memory_files(self) -> list[Customization]:
         """Discover memory files from user and project levels."""
@@ -268,145 +247,20 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         """Discover customizations from installed and enabled plugins."""
         customizations: list[Customization] = []
 
-        installed_plugins = self._load_installed_plugins()
-        if not installed_plugins:
-            return customizations
-
-        enabled_plugins = self._load_enabled_plugins()
-
-        for plugin_id, plugin_data in installed_plugins.items():
-            if not enabled_plugins.get(plugin_id, True):
-                continue
-
-            plugin_info = self._create_plugin_info(plugin_id, plugin_data)
-            if plugin_info is None:
-                continue
-
+        for plugin_info in self._plugin_loader.get_enabled_plugins():
             install_path = plugin_info.install_path
-            if not install_path.is_dir():
-                continue
 
-            customizations.extend(
-                self._discover_plugin_slash_commands(install_path, plugin_info)
-            )
-            customizations.extend(
-                self._discover_plugin_subagents(install_path, plugin_info)
-            )
-            customizations.extend(
-                self._discover_plugin_skills(install_path, plugin_info)
-            )
+            for config in SCAN_CONFIGS.values():
+                customizations.extend(
+                    self._scanner.scan_directory(
+                        install_path, config, ConfigLevel.PLUGIN, plugin_info
+                    )
+                )
+
             customizations.extend(self._discover_plugin_mcps(install_path, plugin_info))
             customizations.extend(
                 self._discover_plugin_hooks(install_path, plugin_info)
             )
-
-        return customizations
-
-    def _load_installed_plugins(self) -> dict[str, Any]:
-        """Load installed plugins from ~/.claude/plugins/installed_plugins.json."""
-        plugins_file = self.user_config_path / "plugins" / "installed_plugins.json"
-        if not plugins_file.is_file():
-            return {}
-
-        try:
-            data = json.loads(plugins_file.read_text(encoding="utf-8"))
-            plugins: dict[str, Any] = data.get("plugins", {})
-            return plugins
-        except (json.JSONDecodeError, OSError):
-            return {}
-
-    def _load_enabled_plugins(self) -> dict[str, bool]:
-        """Load enabled plugins from ~/.claude/settings.json."""
-        settings_file = self.user_config_path / "settings.json"
-        if not settings_file.is_file():
-            return {}
-
-        try:
-            data = json.loads(settings_file.read_text(encoding="utf-8"))
-            enabled: dict[str, bool] = data.get("enabledPlugins", {})
-            return enabled
-        except (json.JSONDecodeError, OSError):
-            return {}
-
-    def _create_plugin_info(
-        self, plugin_id: str, plugin_data: dict[str, Any]
-    ) -> PluginInfo | None:
-        """Create PluginInfo from plugin data."""
-        install_path_str = plugin_data.get("installPath")
-        if not install_path_str:
-            return None
-
-        short_name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
-        install_path = Path(install_path_str)
-
-        if install_path.parent.is_dir():
-            short_name_path = install_path.parent / short_name
-            if short_name_path.is_dir() and (
-                short_name_path != install_path or not install_path.is_dir()
-            ):
-                install_path = short_name_path
-
-        return PluginInfo(
-            plugin_id=plugin_id,
-            short_name=short_name,
-            version=plugin_data.get("version", "unknown"),
-            install_path=install_path,
-            is_local=plugin_data.get("isLocal", False),
-        )
-
-    def _discover_plugin_slash_commands(
-        self, install_path: Path, plugin_info: PluginInfo
-    ) -> list[Customization]:
-        """Discover slash commands from a plugin."""
-        customizations: list[Customization] = []
-        commands_dir = install_path / "commands"
-
-        if not commands_dir.is_dir():
-            return customizations
-
-        parser = SlashCommandParser(commands_dir)
-        for md_file in commands_dir.rglob("*.md"):
-            customization = parser.parse(md_file, ConfigLevel.PLUGIN)
-            customization.plugin_info = plugin_info
-            customizations.append(customization)
-
-        return customizations
-
-    def _discover_plugin_subagents(
-        self, install_path: Path, plugin_info: PluginInfo
-    ) -> list[Customization]:
-        """Discover subagents from a plugin."""
-        customizations: list[Customization] = []
-        agents_dir = install_path / "agents"
-
-        if not agents_dir.is_dir():
-            return customizations
-
-        parser = SubagentParser(agents_dir)
-        for md_file in agents_dir.glob("*.md"):
-            customization = parser.parse(md_file, ConfigLevel.PLUGIN)
-            customization.plugin_info = plugin_info
-            customizations.append(customization)
-
-        return customizations
-
-    def _discover_plugin_skills(
-        self, install_path: Path, plugin_info: PluginInfo
-    ) -> list[Customization]:
-        """Discover skills from a plugin."""
-        customizations: list[Customization] = []
-        skills_dir = install_path / "skills"
-
-        if not skills_dir.is_dir():
-            return customizations
-
-        parser = SkillParser(skills_dir)
-        for skill_dir in skills_dir.iterdir():
-            skill_md = skill_dir / "SKILL.md"
-            if skill_md.is_file():
-                customization = parser.parse(skill_md, ConfigLevel.PLUGIN)
-                customization.plugin_info = plugin_info
-                customizations.append(customization)
 
         return customizations
 
@@ -421,8 +275,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             return customizations
 
         parser = MCPParser()
-        mcp_customizations = parser.parse(mcp_file, ConfigLevel.PLUGIN)
-        for customization in mcp_customizations:
+        for customization in parser.parse(mcp_file, ConfigLevel.PLUGIN):
             customization.plugin_info = plugin_info
             customizations.append(customization)
 
@@ -439,8 +292,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             return customizations
 
         parser = HookParser()
-        hook_customizations = parser.parse(hooks_file, ConfigLevel.PLUGIN)
-        for customization in hook_customizations:
+        for customization in parser.parse(hooks_file, ConfigLevel.PLUGIN):
             customization.plugin_info = plugin_info
             customizations.append(customization)
 
