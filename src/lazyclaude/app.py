@@ -30,7 +30,7 @@ class LazyClaude(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("?", "toggle_help", "Help"),
-        Binding("R", "refresh", "Refresh", key_display="shift+r"),
+        Binding("r", "refresh", "Refresh"),
         Binding("e", "open_in_editor", "Edit"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
