@@ -101,6 +101,7 @@ disallow_untyped_defs = true
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.0",
     "pyfakefs>=5.10.2",
     "ruff>=0.14.8",
     "types-pyyaml>=6.0.12.20250915",
