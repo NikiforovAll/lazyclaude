@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'pre-bash hook'"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "example-plugin@test": true,
+    "disabled-plugin@test": false
+  }
+}

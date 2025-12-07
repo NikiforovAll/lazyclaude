@@ -94,5 +94,6 @@ disallow_untyped_defs = true
 
 [dependency-groups]
 dev = [
+    "pyfakefs>=5.10.2",
     "ruff>=0.14.8",
 ]
