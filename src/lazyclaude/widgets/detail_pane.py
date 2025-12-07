@@ -49,7 +49,7 @@ class MainPane(Widget):
     MainPane {
         height: 100%;
         border: solid $primary;
-        padding: 1;
+        padding: 1 0 1 2;
         overflow-y: auto;
         border-title-align: left;
     }

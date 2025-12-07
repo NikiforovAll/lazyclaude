@@ -19,8 +19,17 @@ uvx lazyclaude
 ```bash
 uv sync              # Install dependencies
 uv run lazyclaude    # Run app
-uv run pytest        # Run tests
 ```
+
+Publish:
+
+```bash
+export UV_PUBLISH_TOKEN=<your_token>
+uv build
+uv publish
+```
+
+See: <https://docs.astral.sh/uv/guides/package/>
 
 ## Keybindings
 

@@ -1,6 +1,6 @@
 [project]
 name = "lazyclaude"
-version = "0.1.0"
+version = "0.2.0"
 description = "A lazygit-style TUI for visualizing Claude Code customizations"
 readme = "README.md"
 requires-python = ">=3.11"

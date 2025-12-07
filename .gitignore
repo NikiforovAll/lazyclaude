@@ -62,3 +62,6 @@ Thumbs.db
 
 # Textual snapshots (keep in repo but ignore local changes during dev)
 # tests/snapshots/*.svg
+
+# backlog.md special folder
+backlog
