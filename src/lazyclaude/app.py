@@ -3,7 +3,6 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import cast
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -159,7 +158,7 @@ class LazyClaude(App):
     def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
         """Handle drill down into a customization."""
         if self._main_pane:
-            self._last_focused_panel = cast(TypePanel, message.control)
+            self._last_focused_panel = self._get_focused_panel()
             self._main_pane.customization = message.customization
             self._main_pane.focus()
 
