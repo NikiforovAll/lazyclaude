@@ -36,6 +36,7 @@ class TypePanel(Widget):
         Binding("left", "collapse", "Collapse", show=False),
         Binding("l", "expand", "Expand", show=False),
         Binding("h", "collapse", "Collapse", show=False),
+        Binding("escape", "back", "Back", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -347,7 +348,8 @@ class TypePanel(Widget):
         """Handle focus event."""
         self.is_active = True
         self._refresh_display()
-        self.post_message(self.SelectionChanged(self.selected_customization))
+        if self.selected_customization:
+            self.post_message(self.SelectionChanged(self.selected_customization))
 
     def on_blur(self) -> None:
         """Handle blur event."""
@@ -395,6 +397,10 @@ class TypePanel(Widget):
     def action_focus_previous_panel(self) -> None:
         """Delegate to app's focus_previous_panel action."""
         cast("LazyClaude", self.app).action_focus_previous_panel()
+
+    async def action_back(self) -> None:
+        """Delegate to app's back action."""
+        await cast("LazyClaude", self.app).action_back()
 
     def set_customizations(self, customizations: list[Customization]) -> None:
         """Set the customizations for this panel (filtered by type)."""
