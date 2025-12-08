@@ -77,7 +77,6 @@ class LazyClaude(App):
         self._main_pane: MainPane | None = None
         self._filter_input: FilterInput | None = None
         self._help_visible = False
-        self._navigation_history: list[Customization] = []
         self._last_focused_panel: TypePanel | None = None
 
     def compose(self) -> ComposeResult:
@@ -164,7 +163,6 @@ class LazyClaude(App):
             else:
                 self._last_focused_panel = self._get_focused_panel()
             self._main_pane.customization = message.customization
-            self._navigation_history.append(message.customization)
             self._main_pane.focus()
 
     async def action_quit(self) -> None:
@@ -273,7 +271,7 @@ class LazyClaude(App):
     def action_filter_all(self) -> None:
         """Show all customizations (clear level filter)."""
         self._level_filter = None
-        self._navigation_history.clear()
+        self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
         self._update_panels()
@@ -283,7 +281,7 @@ class LazyClaude(App):
     def action_filter_user(self) -> None:
         """Show only user-level customizations."""
         self._level_filter = ConfigLevel.USER
-        self._navigation_history.clear()
+        self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
         self._update_panels()
@@ -293,7 +291,7 @@ class LazyClaude(App):
     def action_filter_project(self) -> None:
         """Show only project-level customizations."""
         self._level_filter = ConfigLevel.PROJECT
-        self._navigation_history.clear()
+        self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
         self._update_panels()
@@ -303,7 +301,7 @@ class LazyClaude(App):
     def action_filter_plugin(self) -> None:
         """Show only plugin-level customizations."""
         self._level_filter = ConfigLevel.PLUGIN
-        self._navigation_history.clear()
+        self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
         self._update_panels()
@@ -336,7 +334,7 @@ class LazyClaude(App):
     ) -> None:
         """Handle filter query changes (real-time filtering)."""
         self._search_query = message.query
-        self._navigation_history.clear()
+        self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
         self._update_panels()
@@ -348,7 +346,7 @@ class LazyClaude(App):
     ) -> None:
         """Handle filter cancellation."""
         self._search_query = ""
-        self._navigation_history.clear()
+        self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
         self._update_panels()

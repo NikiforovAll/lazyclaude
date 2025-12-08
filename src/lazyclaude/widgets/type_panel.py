@@ -252,6 +252,8 @@ class TypePanel(Widget):
         """Handle focus event."""
         self.is_active = True
         self._refresh_display()
+        if self.selected_customization:
+            self.post_message(self.SelectionChanged(self.selected_customization))
 
     def on_blur(self) -> None:
         """Handle blur event."""
