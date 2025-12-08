@@ -47,6 +47,17 @@ class SubagentMetadata:
 
 
 @dataclass
+class SkillFile:
+    """A file or directory within a skill folder."""
+
+    name: str
+    path: Path
+    content: str | None = None
+    is_directory: bool = False
+    children: list["SkillFile"] = field(default_factory=list)
+
+
+@dataclass
 class SkillMetadata:
     """Metadata specific to skills."""
 
@@ -55,6 +66,7 @@ class SkillMetadata:
     has_examples: bool = False
     has_scripts: bool = False
     has_templates: bool = False
+    files: list[SkillFile] = field(default_factory=list)
 
 
 @dataclass
