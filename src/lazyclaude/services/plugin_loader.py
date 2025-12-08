@@ -55,6 +55,18 @@ class PluginLoader:
 
         return plugins
 
+    def get_all_plugins(self) -> list[PluginInfo]:
+        """Get list of ALL plugin infos (enabled and disabled) with resolved install paths."""
+        registry = self.load_registry()
+        plugins: list[PluginInfo] = []
+
+        for plugin_id, plugin_data in registry.installed.items():
+            plugin_info = self._create_plugin_info(plugin_id, plugin_data)
+            if plugin_info and plugin_info.install_path.is_dir():
+                plugins.append(plugin_info)
+
+        return plugins
+
     def refresh(self) -> None:
         """Clear cached registry to force reload."""
         self._registry = None
@@ -88,10 +100,15 @@ class PluginLoader:
             ):
                 install_path = short_name_path
 
+        is_enabled = True
+        if self._registry:
+            is_enabled = self._registry.enabled.get(plugin_id, True)
+
         return PluginInfo(
             plugin_id=plugin_id,
             short_name=short_name,
             version=plugin_data.get("version", "unknown"),
             install_path=install_path,
             is_local=plugin_data.get("isLocal", False),
+            is_enabled=is_enabled,
         )

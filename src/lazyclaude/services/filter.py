@@ -18,6 +18,7 @@ class IFilterService(ABC):
         customizations: list[Customization],
         query: str = "",
         level: ConfigLevel | None = None,
+        plugin_enabled: bool | None = None,
     ) -> list[Customization]:
         """
         Filter customizations by search query and/or level.
@@ -26,6 +27,7 @@ class IFilterService(ABC):
             customizations: Source list to filter.
             query: Search string (matches name only).
             level: Optional level filter (None = all levels).
+            plugin_enabled: Optional plugin enabled filter (None = both, True = enabled only, False = disabled only).
 
         Returns:
             Filtered list maintaining original order.
@@ -59,12 +61,20 @@ class FilterService(IFilterService):
         customizations: list[Customization],
         query: str = "",
         level: ConfigLevel | None = None,
+        plugin_enabled: bool | None = None,
     ) -> list[Customization]:
         """Filter customizations by search query and/or level."""
         result = customizations
 
         if level is not None:
             result = [c for c in result if c.level == level]
+
+        if plugin_enabled is not None:
+            result = [
+                c
+                for c in result
+                if c.plugin_info is None or c.plugin_info.is_enabled == plugin_enabled
+            ]
 
         if query:
             query_lower = query.lower()

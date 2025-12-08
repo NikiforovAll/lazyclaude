@@ -89,6 +89,7 @@ class PluginInfo:
     version: str  # e.g., "1.3.1"
     install_path: Path
     is_local: bool = False
+    is_enabled: bool = True
 
 
 @dataclass
@@ -116,7 +117,10 @@ class Customization:
     def display_name(self) -> str:
         """Name for display in UI, with level indicator or plugin prefix."""
         if self.plugin_info:
-            return f"[dim]{self.plugin_info.short_name}:[/]{self.name}"
+            base = f"[dim]{self.plugin_info.short_name}:[/]{self.name}"
+            if not self.plugin_info.is_enabled:
+                return f"[dim]{base}[/]"
+            return base
         level_indicator = {
             ConfigLevel.USER: "[U]",
             ConfigLevel.PROJECT: "[P]",

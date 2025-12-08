@@ -244,10 +244,10 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         return customizations
 
     def _discover_plugins(self) -> list[Customization]:
-        """Discover customizations from installed and enabled plugins."""
+        """Discover customizations from ALL installed plugins (enabled and disabled)."""
         customizations: list[Customization] = []
 
-        for plugin_info in self._plugin_loader.get_enabled_plugins():
+        for plugin_info in self._plugin_loader.get_all_plugins():
             install_path = plugin_info.install_path
 
             for config in SCAN_CONFIGS.values():
