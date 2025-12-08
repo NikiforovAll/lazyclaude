@@ -162,6 +162,13 @@ class LazyClaude(App):
             self._main_pane.customization = message.customization
             self._main_pane.focus()
 
+    def on_type_panel_skill_file_selected(
+        self, message: TypePanel.SkillFileSelected
+    ) -> None:
+        """Handle skill file selection in the skills tree."""
+        if self._main_pane:
+            self._main_pane.selected_file = message.file_path
+
     async def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
@@ -176,7 +183,15 @@ class LazyClaude(App):
         if not self._main_pane or not self._main_pane.customization:
             return
 
-        file_path = self._main_pane.customization.path
+        customization = self._main_pane.customization
+
+        if self._main_pane.selected_file:
+            file_path = self._main_pane.selected_file
+        elif customization.type == CustomizationType.SKILL:
+            file_path = customization.path.parent
+        else:
+            file_path = customization.path
+
         if not file_path.exists():
             return
 

@@ -1,6 +1,7 @@
 """MainPane widget for displaying customization details."""
 
 import re
+from pathlib import Path
 
 from rich.console import Group, RenderableType
 from rich.syntax import Syntax
@@ -77,6 +78,8 @@ class MainPane(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self.can_focus = True
 
+    selected_file: reactive[Path | None] = reactive(None)
+
     def compose(self) -> ComposeResult:
         """Compose the pane content."""
         yield Static(self._get_renderable(), classes="pane-content")
@@ -137,6 +140,9 @@ class MainPane(Widget):
 
     def _render_file_content(self) -> RenderableType:
         """Render file content view with syntax highlighting."""
+        if self.selected_file:
+            return self._render_selected_file()
+
         if not self.customization:
             return "[dim italic]No content to display[/]"
         if self.customization.has_error:
@@ -157,6 +163,48 @@ class MainPane(Widget):
             lexer,
             theme=self._get_syntax_theme(),
             line_numbers=True,
+            word_wrap=True,
+        )
+
+    def _render_selected_file(self) -> RenderableType:
+        """Render content of a selected file (from skill tree)."""
+        if not self.selected_file:
+            return "[dim italic]No file selected[/]"
+
+        path = self.selected_file
+        if path.is_dir():
+            return f"[bold]{path.name}/[/]\n\n[dim](directory)[/]"
+
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as e:
+            return f"[red]Error reading file:[/] {e}"
+
+        if not content:
+            return "[dim italic]Empty file[/]"
+
+        suffix = path.suffix.lower()
+        theme = self._get_syntax_theme()
+
+        lexer_map = {
+            ".md": "markdown",
+            ".json": "json",
+            ".py": "python",
+            ".sh": "bash",
+            ".yaml": "yaml",
+            ".yml": "yaml",
+            ".js": "javascript",
+            ".ts": "typescript",
+        }
+        lexer = lexer_map.get(suffix, "text")
+
+        if suffix == ".md":
+            return self._render_markdown_with_frontmatter(content)
+
+        return Syntax(
+            content,
+            lexer,
+            theme=theme,
             word_wrap=True,
         )
 
@@ -195,7 +243,13 @@ class MainPane(Widget):
         customization: Customization | None,  # noqa: ARG002
     ) -> None:
         """React to customization changes."""
+        self.selected_file = None
         self.border_subtitle = self._render_footer()
+        self._refresh_display()
+
+    def watch_selected_file(self, path: Path | None) -> None:
+        """React to selected file changes (for skill files)."""
+        self.border_subtitle = str(path) if path else self._render_footer()
         self._refresh_display()
 
     def _refresh_display(self) -> None:

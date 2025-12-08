@@ -1,5 +1,6 @@
 """TypePanel widget for displaying customizations of a single type."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from textual.app import ComposeResult
@@ -15,7 +16,7 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from lazyclaude.app import LazyClaude
 
-from lazyclaude.models.customization import Customization, CustomizationType
+from lazyclaude.models.customization import Customization, CustomizationType, SkillFile
 
 
 class TypePanel(Widget):
@@ -31,6 +32,10 @@ class TypePanel(Widget):
         Binding("g", "cursor_top", "Top", show=False),
         Binding("G", "cursor_bottom", "Bottom", show=False, key_display="shift+g"),
         Binding("enter", "select", "Select", show=False),
+        Binding("right", "expand", "Expand", show=False),
+        Binding("left", "collapse", "Collapse", show=False),
+        Binding("l", "expand", "Expand", show=False),
+        Binding("h", "collapse", "Collapse", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -92,6 +97,18 @@ class TypePanel(Widget):
             self.customization = customization
             super().__init__()
 
+    class SkillFileSelected(Message):
+        """Emitted when a file within a skill is selected."""
+
+        def __init__(
+            self, customization: Customization, file_path: Path | None
+        ) -> None:
+            self.customization = customization
+            self.file_path = file_path
+            super().__init__()
+
+    expanded_skills: reactive[set[str]] = reactive(set, always_update=True)
+
     def __init__(
         self,
         customization_type: CustomizationType,
@@ -103,6 +120,12 @@ class TypePanel(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self.customization_type = customization_type
         self.can_focus = True
+        self._flat_items: list[tuple[Customization, Path | None]] = []
+
+    @property
+    def _is_skills_panel(self) -> bool:
+        """Check if this panel is for skills."""
+        return self.customization_type == CustomizationType.SKILL
 
     @property
     def type_label(self) -> str:
@@ -140,7 +163,10 @@ class TypePanel(Widget):
 
     def _render_footer(self) -> str:
         """Render the panel footer with selection position."""
-        count = len(self.customizations)
+        if self._is_skills_panel:
+            count = len(self._flat_items)
+        else:
+            count = len(self.customizations)
         if count == 0:
             return "0 of 0"
         return f"{self.selected_index + 1} of {count}"
@@ -152,16 +178,42 @@ class TypePanel(Widget):
         error_marker = " [red]![/]" if item.has_error else ""
         return f"{prefix} {item.display_name}{error_marker}"
 
+    def _render_skill_item(
+        self, index: int, skill: Customization, file_path: Path | None
+    ) -> str:
+        """Render a skill item (skill root or file)."""
+        is_selected = index == self.selected_index and self.is_active
+        prefix = ">" if is_selected else " "
+
+        if file_path is None:
+            is_expanded = skill.name in self.expanded_skills
+            has_files = bool(skill.metadata.get("files", []))
+            expand_char = ("▼" if is_expanded else "▶") if has_files else " "
+            error_marker = " [red]![/]" if skill.has_error else ""
+            return f"{prefix} {expand_char} {skill.display_name}{error_marker}"
+        else:
+            indent = self._get_item_indent(file_path, skill)
+            indent_str = "  " * indent
+            name = file_path.name
+            if file_path.is_dir():
+                name = f"{name}/"
+            return f"{prefix} {indent_str}{name}"
+
     def watch_customizations(self, customizations: list[Customization]) -> None:
         """React to customizations list changes."""
-        if self.selected_index >= len(customizations):
+        if self._is_skills_panel:
+            self._rebuild_flat_items()
+            if self.selected_index >= len(self._flat_items):
+                self.selected_index = max(0, len(self._flat_items) - 1)
+        elif self.selected_index >= len(customizations):
             self.selected_index = max(0, len(customizations) - 1)
+
         if self.is_mounted:
             self.border_title = self._render_header()
             self.border_subtitle = self._render_footer()
             self.call_later(self._rebuild_items)
             if self.is_active:
-                self.post_message(self.SelectionChanged(self.selected_customization))
+                self._emit_selection_message()
 
     def watch_selected_index(self, index: int) -> None:  # noqa: ARG002
         """React to selected index changes."""
@@ -169,7 +221,7 @@ class TypePanel(Widget):
             self.border_subtitle = self._render_footer()
         self._refresh_display()
         self._scroll_to_selection()
-        self.post_message(self.SelectionChanged(self.selected_customization))
+        self._emit_selection_message()
 
     async def _rebuild_items(self) -> None:
         """Rebuild item widgets when customizations change."""
@@ -177,17 +229,37 @@ class TypePanel(Widget):
             return
         container = self.query_one(".items-container", VerticalScroll)
         await container.remove_children()
-        if not self.customizations:
-            await container.mount(
-                Static("[dim italic]No items[/]", classes="empty-message")
-            )
-        else:
-            for i, item in enumerate(self.customizations):
-                is_selected = i == self.selected_index and self.is_active
-                classes = "item item-selected" if is_selected else "item"
+
+        if self._is_skills_panel:
+            if not self._flat_items:
                 await container.mount(
-                    Static(self._render_item(i, item), classes=classes, id=f"item-{i}")
+                    Static("[dim italic]No items[/]", classes="empty-message")
                 )
+            else:
+                for i, (skill, file_path) in enumerate(self._flat_items):
+                    is_selected = i == self.selected_index and self.is_active
+                    classes = "item item-selected" if is_selected else "item"
+                    await container.mount(
+                        Static(
+                            self._render_skill_item(i, skill, file_path),
+                            classes=classes,
+                            id=f"item-{i}",
+                        )
+                    )
+        else:
+            if not self.customizations:
+                await container.mount(
+                    Static("[dim italic]No items[/]", classes="empty-message")
+                )
+            else:
+                for i, item in enumerate(self.customizations):
+                    is_selected = i == self.selected_index and self.is_active
+                    classes = "item item-selected" if is_selected else "item"
+                    await container.mount(
+                        Static(
+                            self._render_item(i, item), classes=classes, id=f"item-{i}"
+                        )
+                    )
         container.scroll_home(animate=False)
 
     def on_mount(self) -> None:
@@ -201,19 +273,31 @@ class TypePanel(Widget):
         """Refresh the panel display (updates existing widgets)."""
         try:
             items = list(self.query("Static.item"))
-            for i, (item_widget, item) in enumerate(
-                zip(items, self.customizations, strict=False)
-            ):
-                if isinstance(item_widget, Static):
-                    item_widget.update(self._render_item(i, item))
-                is_selected = i == self.selected_index and self.is_active
-                item_widget.set_class(is_selected, "item-selected")
+            if self._is_skills_panel:
+                for i, (item_widget, (skill, file_path)) in enumerate(
+                    zip(items, self._flat_items, strict=False)
+                ):
+                    if isinstance(item_widget, Static):
+                        item_widget.update(self._render_skill_item(i, skill, file_path))
+                    is_selected = i == self.selected_index and self.is_active
+                    item_widget.set_class(is_selected, "item-selected")
+            else:
+                for i, (item_widget, item) in enumerate(
+                    zip(items, self.customizations, strict=False)
+                ):
+                    if isinstance(item_widget, Static):
+                        item_widget.update(self._render_item(i, item))
+                    is_selected = i == self.selected_index and self.is_active
+                    item_widget.set_class(is_selected, "item-selected")
         except Exception:
             pass
 
     def _scroll_to_selection(self) -> None:
         """Scroll to keep the selected item visible."""
-        if not self.customizations:
+        item_count = (
+            len(self._flat_items) if self._is_skills_panel else len(self.customizations)
+        )
+        if item_count == 0:
             return
         try:
             items = list(self.query(".item"))
@@ -258,25 +342,34 @@ class TypePanel(Widget):
         self.is_active = False
         self._refresh_display()
 
+    def _item_count(self) -> int:
+        """Get the number of items in the panel."""
+        return (
+            len(self._flat_items) if self._is_skills_panel else len(self.customizations)
+        )
+
     def action_cursor_down(self) -> None:
         """Move selection down."""
-        if self.customizations and self.selected_index < len(self.customizations) - 1:
+        count = self._item_count()
+        if count > 0 and self.selected_index < count - 1:
             self.selected_index += 1
 
     def action_cursor_up(self) -> None:
         """Move selection up."""
-        if self.customizations and self.selected_index > 0:
+        count = self._item_count()
+        if count > 0 and self.selected_index > 0:
             self.selected_index -= 1
 
     def action_cursor_top(self) -> None:
         """Move selection to top."""
-        if self.customizations:
+        if self._item_count() > 0:
             self.selected_index = 0
 
     def action_cursor_bottom(self) -> None:
         """Move selection to bottom."""
-        if self.customizations:
-            self.selected_index = len(self.customizations) - 1
+        count = self._item_count()
+        if count > 0:
+            self.selected_index = count - 1
 
     def action_select(self) -> None:
         """Drill down into selected customization."""
@@ -303,3 +396,76 @@ class TypePanel(Widget):
             self.add_class("empty")
         else:
             self.remove_class("empty")
+
+    def _rebuild_flat_items(self) -> None:
+        """Build flat list of items for skills panel (with expanded files)."""
+        self._flat_items = []
+        for skill in self.customizations:
+            self._flat_items.append((skill, None))
+            if skill.name in self.expanded_skills:
+                files: list[SkillFile] = skill.metadata.get("files", [])
+                self._add_files_to_flat_list(skill, files, indent=1)
+
+    def _add_files_to_flat_list(
+        self, skill: Customization, files: list[SkillFile], indent: int
+    ) -> None:
+        """Add files to flat list with indentation tracking."""
+        for file in files:
+            self._flat_items.append((skill, file.path))
+            if file.is_directory and file.children:
+                self._add_files_to_flat_list(skill, file.children, indent + 1)
+
+    def _emit_selection_message(self) -> None:
+        """Emit selection message based on current selection."""
+        if self._is_skills_panel and self._flat_items:
+            if 0 <= self.selected_index < len(self._flat_items):
+                skill, file_path = self._flat_items[self.selected_index]
+                self.post_message(self.SelectionChanged(skill))
+                self.post_message(self.SkillFileSelected(skill, file_path))
+        else:
+            self.post_message(self.SelectionChanged(self.selected_customization))
+
+    def _get_item_indent(self, file_path: Path | None, skill: Customization) -> int:
+        """Get indentation level for a file path within a skill."""
+        if not file_path:
+            return 0
+        skill_dir = skill.path.parent
+        try:
+            rel = file_path.relative_to(skill_dir)
+            return len(rel.parts)
+        except ValueError:
+            return 1
+
+    def action_expand(self) -> None:
+        """Expand the currently selected skill."""
+        if not self._is_skills_panel or not self._flat_items:
+            return
+        if 0 <= self.selected_index < len(self._flat_items):
+            skill, file_path = self._flat_items[self.selected_index]
+            if file_path is None and skill.name not in self.expanded_skills:
+                new_expanded = self.expanded_skills.copy()
+                new_expanded.add(skill.name)
+                self.expanded_skills = new_expanded
+                self._rebuild_flat_items()
+                self.call_later(self._rebuild_items)
+
+    def action_collapse(self) -> None:
+        """Collapse the currently selected skill."""
+        if not self._is_skills_panel or not self._flat_items:
+            return
+        if 0 <= self.selected_index < len(self._flat_items):
+            skill, _ = self._flat_items[self.selected_index]
+            if skill.name in self.expanded_skills:
+                new_expanded = self.expanded_skills.copy()
+                new_expanded.discard(skill.name)
+                self.expanded_skills = new_expanded
+                self._rebuild_flat_items()
+                self._adjust_selection_after_collapse(skill)
+                self.call_later(self._rebuild_items)
+
+    def _adjust_selection_after_collapse(self, collapsed_skill: Customization) -> None:
+        """Adjust selection after collapsing a skill."""
+        for i, (skill, file_path) in enumerate(self._flat_items):
+            if skill == collapsed_skill and file_path is None:
+                self.selected_index = i
+                break
