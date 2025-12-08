@@ -337,7 +337,12 @@ class TypePanel(Widget):
             if current.id and current.id.startswith("item-"):
                 try:
                     index = int(current.id.split("-")[1])
-                    if 0 <= index < len(self.customizations):
+                    item_count = (
+                        len(self._flat_items)
+                        if self._is_skills_panel
+                        else len(self.customizations)
+                    )
+                    if 0 <= index < item_count:
                         self.selected_index = index
                 except ValueError:
                     pass
@@ -348,8 +353,7 @@ class TypePanel(Widget):
         """Handle focus event."""
         self.is_active = True
         self._refresh_display()
-        if self.selected_customization:
-            self.post_message(self.SelectionChanged(self.selected_customization))
+        self._emit_selection_message()
 
     def on_blur(self) -> None:
         """Handle blur event."""
