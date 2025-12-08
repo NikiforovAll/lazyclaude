@@ -387,7 +387,16 @@ class TypePanel(Widget):
 
     def action_select(self) -> None:
         """Drill down into selected customization."""
-        if self.selected_customization:
+        if self._is_skills_panel:
+            if not self._flat_items or not (
+                0 <= self.selected_index < len(self._flat_items)
+            ):
+                return
+            skill, file_path = self._flat_items[self.selected_index]
+            if file_path is not None and file_path.is_dir():
+                return
+            self.post_message(self.DrillDown(skill))
+        elif self.selected_customization:
             self.post_message(self.DrillDown(self.selected_customization))
 
     def action_focus_next_panel(self) -> None:
