@@ -223,7 +223,7 @@ class TypePanel(Widget):
         self._scroll_to_selection()
         self._emit_selection_message()
 
-    async def _rebuild_items(self) -> None:
+    async def _rebuild_items(self, *, scroll_to_selection: bool = False) -> None:
         """Rebuild item widgets when customizations change."""
         if not self.is_mounted:
             return
@@ -260,7 +260,11 @@ class TypePanel(Widget):
                             self._render_item(i, item), classes=classes, id=f"item-{i}"
                         )
                     )
-        container.scroll_home(animate=False)
+
+        if scroll_to_selection:
+            self._scroll_selection_to_top()
+        else:
+            container.scroll_home(animate=False)
 
     def on_mount(self) -> None:
         """Handle mount event - rebuild items if customizations were set before mount."""
@@ -303,6 +307,14 @@ class TypePanel(Widget):
             items = list(self.query(".item"))
             if 0 <= self.selected_index < len(items):
                 items[self.selected_index].scroll_visible(animate=False)
+        except Exception:
+            pass
+
+    def _scroll_selection_to_top(self) -> None:
+        """Scroll so the selected item is at the top of the container."""
+        try:
+            container = self.query_one(".items-container", VerticalScroll)
+            container.scroll_to(y=self.selected_index, animate=False)
         except Exception:
             pass
 
@@ -436,6 +448,10 @@ class TypePanel(Widget):
         except ValueError:
             return 1
 
+    async def _rebuild_items_and_scroll(self) -> None:
+        """Rebuild items and scroll selection to top."""
+        await self._rebuild_items(scroll_to_selection=True)
+
     def action_expand(self) -> None:
         """Expand the currently selected skill."""
         if not self._is_skills_panel or not self._flat_items:
@@ -447,7 +463,7 @@ class TypePanel(Widget):
                 new_expanded.add(skill.name)
                 self.expanded_skills = new_expanded
                 self._rebuild_flat_items()
-                self.call_later(self._rebuild_items)
+                self.call_later(self._rebuild_items_and_scroll)
 
     def action_collapse(self) -> None:
         """Collapse the currently selected skill."""
