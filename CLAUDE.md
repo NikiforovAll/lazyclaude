@@ -35,7 +35,7 @@ uv run mypy src                        # Type check
 
 ## Constitution Principles
 
-All code MUST comply with these principles (see `.specify/memory/constitution.md`):
+All code MUST comply with these principles (see `docs/constitution.md`):
 
 1. **Keyboard-First**: Every action has a keyboard shortcut, vim-like navigation
 2. **Panel Layout**: Multi-panel structure with clear focus indicators
