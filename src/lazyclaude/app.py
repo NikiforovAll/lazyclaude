@@ -3,6 +3,7 @@
 import os
 import subprocess
 from pathlib import Path
+from typing import cast
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -77,6 +78,7 @@ class LazyClaude(App):
         self._main_pane: MainPane | None = None
         self._filter_input: FilterInput | None = None
         self._help_visible = False
+        self._last_focused_panel: TypePanel | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -103,8 +105,6 @@ class LazyClaude(App):
         self.theme = "gruvbox"
         self._load_customizations()
         self._update_status_panel()
-        if self._panels:
-            self._panels[0].focus()
 
     def _update_status_panel(self) -> None:
         """Update status panel with current config path and filter level."""
@@ -159,6 +159,7 @@ class LazyClaude(App):
     def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
         """Handle drill down into a customization."""
         if self._main_pane:
+            self._last_focused_panel = cast(TypePanel, message.control)
             self._main_pane.customization = message.customization
             self._main_pane.focus()
 
@@ -184,11 +185,10 @@ class LazyClaude(App):
         subprocess.Popen([editor, str(file_path)], shell=True)
 
     async def action_back(self) -> None:
-        """Go back - return focus to panel from main pane."""
+        """Go back - return focus to panel from main pane, keep content visible."""
         if self._main_pane and self._main_pane.has_focus:
-            focused_panel = self._get_focused_panel()
-            if focused_panel:
-                focused_panel.focus()
+            if self._last_focused_panel:
+                self._last_focused_panel.focus()
             elif self._panels:
                 self._panels[0].focus()
 
@@ -269,6 +269,9 @@ class LazyClaude(App):
     def action_filter_all(self) -> None:
         """Show all customizations (clear level filter)."""
         self._level_filter = None
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
         self._update_status_filter("All")
@@ -276,6 +279,9 @@ class LazyClaude(App):
     def action_filter_user(self) -> None:
         """Show only user-level customizations."""
         self._level_filter = ConfigLevel.USER
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
         self._update_status_filter("User")
@@ -283,6 +289,9 @@ class LazyClaude(App):
     def action_filter_project(self) -> None:
         """Show only project-level customizations."""
         self._level_filter = ConfigLevel.PROJECT
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
         self._update_status_filter("Project")
@@ -290,6 +299,9 @@ class LazyClaude(App):
     def action_filter_plugin(self) -> None:
         """Show only plugin-level customizations."""
         self._level_filter = ConfigLevel.PLUGIN
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
         self._update_status_filter("Plugin")
@@ -320,6 +332,9 @@ class LazyClaude(App):
     ) -> None:
         """Handle filter query changes (real-time filtering)."""
         self._search_query = message.query
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
 
@@ -329,10 +344,11 @@ class LazyClaude(App):
     ) -> None:
         """Handle filter cancellation."""
         self._search_query = ""
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
-        if self._panels:
-            self._panels[0].focus()
 
     def on_filter_input_filter_applied(
         self,
@@ -341,8 +357,6 @@ class LazyClaude(App):
         """Handle filter application (Enter key)."""
         if self._filter_input:
             self._filter_input.hide()
-        if self._panels:
-            self._panels[0].focus()
 
     def action_toggle_help(self) -> None:
         """Toggle help overlay visibility."""
