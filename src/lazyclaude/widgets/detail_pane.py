@@ -162,7 +162,6 @@ class MainPane(Widget):
             content,
             lexer,
             theme=self._get_syntax_theme(),
-            line_numbers=True,
             word_wrap=True,
         )
 
