@@ -39,6 +39,7 @@ class LazyClaude(App):
         Binding("u", "filter_user", "User"),
         Binding("p", "filter_project", "Project"),
         Binding("P", "filter_plugin", "Plugin"),
+        Binding("d", "toggle_plugin_enabled_filter", "Disabled"),
         Binding("/", "search", "Search"),
         Binding("[", "prev_view", "[", show=True),
         Binding("]", "next_view", "]", show=True),
@@ -72,6 +73,7 @@ class LazyClaude(App):
         self._customizations: list[Customization] = []
         self._level_filter: ConfigLevel | None = None
         self._search_query: str = ""
+        self._plugin_enabled_filter: bool | None = True
         self._panels: list[TypePanel] = []
         self._status_panel: StatusPanel | None = None
         self._main_pane: MainPane | None = None
@@ -129,6 +131,7 @@ class LazyClaude(App):
             self._customizations,
             query=self._search_query,
             level=self._level_filter,
+            plugin_enabled=self._plugin_enabled_filter,
         )
 
     def _update_subtitle(self) -> None:
@@ -142,6 +145,9 @@ class LazyClaude(App):
             parts.append("Plugin Level")
         else:
             parts.append("All Levels")
+
+        if self._plugin_enabled_filter is True:
+            parts.append("Enabled Only")
 
         if self._search_query:
             parts.append(f'Search: "{self._search_query}"')
@@ -319,6 +325,19 @@ class LazyClaude(App):
         self._update_panels()
         self._update_subtitle()
         self._update_status_filter("Plugin")
+
+    def action_toggle_plugin_enabled_filter(self) -> None:
+        """Toggle between enabled-only and showing all plugins."""
+        if self._plugin_enabled_filter is True:
+            self._plugin_enabled_filter = None
+        else:
+            self._plugin_enabled_filter = True
+
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
+        self._update_panels()
+        self._update_subtitle()
 
     def _update_status_filter(self, level: str) -> None:
         """Update status panel filter level and path display."""

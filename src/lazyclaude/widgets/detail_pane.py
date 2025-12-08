@@ -103,6 +103,22 @@ class MainPane(Widget):
             f"[dim]Level:[/] {c.level_label}",
             f"[dim]Path:[/] {c.path}",
         ]
+
+        if c.plugin_info:
+            status = (
+                "[green]Enabled[/]"
+                if c.plugin_info.is_enabled
+                else "[yellow]Disabled[/]"
+            )
+            lines.extend(
+                [
+                    "",
+                    f"[dim]Plugin:[/] {c.plugin_info.plugin_id}",
+                    f"[dim]Version:[/] {c.plugin_info.version}",
+                    f"[dim]Status:[/] {status}",
+                ]
+            )
+
         if c.description:
             lines.append(f"[dim]Description:[/] {c.description}")
         if c.has_error:
