@@ -1,27 +1,3 @@
-<!--
-  ============================================================================
-  SYNC IMPACT REPORT
-  ============================================================================
-  Version Change: 1.0.0 → 1.1.0 (MINOR - new principle added)
-
-  Modified Principles: None
-
-  Added Sections:
-    - VI. UV Packaging (new core principle for uv/uvx distribution)
-
-  Removed Sections: None
-
-  Templates Requiring Updates:
-    - .specify/templates/plan-template.md: ✅ updated (added VI. UV Packaging to Constitution Check)
-    - .specify/templates/spec-template.md: ✅ no changes required
-    - .specify/templates/tasks-template.md: ✅ no changes required
-    - .specify/templates/checklist-template.md: ✅ no changes required
-    - .specify/templates/agent-file-template.md: ✅ no changes required
-
-  Follow-up TODOs: None
-  ============================================================================
--->
-
 # LazyClaude Constitution
 
 ## Core Principles
@@ -190,31 +166,3 @@ explicit installation, matching the frictionless experience expected from CLI to
 - Pre-commit hooks enforced
 - `uv run pytest` for test execution
 
-## Governance
-
-This constitution supersedes all other design and development practices for the
-LazyClaude project. All features, PRs, and design decisions MUST comply with
-these principles.
-
-**Amendment Procedure**:
-
-1. Proposed changes MUST be documented with rationale
-2. Changes MUST NOT violate the core ergonomics philosophy (keyboard-first, lazygit-like)
-3. MAJOR changes (principle removal/redefinition) require explicit stakeholder approval
-4. MINOR changes (new principles/expanded guidance) require documentation review
-5. PATCH changes (clarifications/typos) can be made with standard PR review
-
-**Versioning Policy**:
-
-- MAJOR: Backward-incompatible principle changes or removals
-- MINOR: New principles added or existing principles materially expanded
-- PATCH: Clarifications, wording improvements, non-semantic refinements
-
-**Compliance Review**:
-
-- All PRs MUST include a constitution compliance check
-- Code reviews MUST verify keybinding consistency
-- UI changes MUST demonstrate keyboard-only operation
-- New features MUST document their keybindings
-
-**Version**: 1.1.0 | **Ratified**: 2025-12-06 | **Last Amended**: 2025-12-06
