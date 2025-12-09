@@ -14,6 +14,17 @@ class ConfigLevel(Enum):
     PROJECT_LOCAL = auto()  # ~/.claude.json (for MCPs only)
     PLUGIN = auto()  # ~/.claude/plugins/{plugin}/
 
+    @property
+    def label(self) -> str:
+        """Human-readable label for this config level."""
+        labels = {
+            ConfigLevel.USER: "User",
+            ConfigLevel.PROJECT: "Project",
+            ConfigLevel.PROJECT_LOCAL: "Project-Local",
+            ConfigLevel.PLUGIN: "Plugin",
+        }
+        return labels[self]
+
 
 class CustomizationType(Enum):
     """Type of Claude Code customization."""
@@ -131,12 +142,7 @@ class Customization:
     @property
     def level_label(self) -> str:
         """Human-readable level label."""
-        return {
-            ConfigLevel.USER: "User",
-            ConfigLevel.PROJECT: "Project",
-            ConfigLevel.PROJECT_LOCAL: "Project-Local",
-            ConfigLevel.PLUGIN: "Plugin",
-        }[self.level]
+        return self.level.label
 
     @property
     def type_label(self) -> str:

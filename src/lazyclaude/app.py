@@ -4,6 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
+import pyperclip
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -14,10 +15,13 @@ from lazyclaude.models.customization import (
     Customization,
     CustomizationType,
 )
+from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
+from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
+from lazyclaude.widgets.level_selector import LevelSelector
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
 
@@ -32,6 +36,9 @@ class LazyClaude(App):
         Binding("?", "toggle_help", "Help"),
         Binding("r", "refresh", "Refresh"),
         Binding("e", "open_in_editor", "Edit"),
+        Binding("c", "copy_customization", "Copy"),
+        Binding("m", "move_customization", "Move"),
+        Binding("C", "copy_config_path", "Copy Path"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
         Binding("escape", "back", "Back", show=False),
@@ -39,7 +46,7 @@ class LazyClaude(App):
         Binding("u", "filter_user", "User"),
         Binding("p", "filter_project", "Project"),
         Binding("P", "filter_plugin", "Plugin"),
-        Binding("d", "toggle_plugin_enabled_filter", "Disabled"),
+        Binding("D", "toggle_plugin_enabled_filter", "Disabled"),
         Binding("/", "search", "Search"),
         Binding("[", "prev_view", "[", show=True),
         Binding("]", "next_view", "]", show=True),
@@ -78,8 +85,12 @@ class LazyClaude(App):
         self._status_panel: StatusPanel | None = None
         self._main_pane: MainPane | None = None
         self._filter_input: FilterInput | None = None
+        self._level_selector: LevelSelector | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
+        self._pending_customization: Customization | None = None
+        self._panel_before_selector: TypePanel | None = None
+        self._config_path_resolver: ConfigPathResolver | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -99,6 +110,9 @@ class LazyClaude(App):
         self._filter_input = FilterInput(id="filter-input")
         yield self._filter_input
 
+        self._level_selector = LevelSelector(id="level-selector")
+        yield self._level_selector
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -106,6 +120,36 @@ class LazyClaude(App):
         self.theme = "gruvbox"
         self._load_customizations()
         self._update_status_panel()
+        self._config_path_resolver = ConfigPathResolver(
+            self._discovery_service._plugin_loader,
+        )
+
+    def check_action(
+        self,
+        action: str,
+        parameters: tuple[object, ...],  # noqa: ARG002
+    ) -> bool | None:
+        """Control action availability based on current state."""
+        if action in ("copy_customization", "move_customization"):
+            if not self._main_pane or not self._main_pane.customization:
+                return False
+
+            customization = self._main_pane.customization
+
+            if customization.type not in [
+                CustomizationType.SLASH_COMMAND,
+                CustomizationType.SUBAGENT,
+                CustomizationType.SKILL,
+            ]:
+                return False
+
+            if (
+                action == "move_customization"
+                and customization.level == ConfigLevel.PLUGIN
+            ):
+                return False
+
+        return True
 
     def _update_status_panel(self) -> None:
         """Update status panel with current config path and filter level."""
@@ -134,6 +178,18 @@ class LazyClaude(App):
             plugin_enabled=self._plugin_enabled_filter,
         )
 
+    def _update_display_path(self, customization: Customization | None) -> None:
+        """Update main pane display path with resolved path for plugins."""
+        if not self._main_pane:
+            return
+
+        if not customization or not self._config_path_resolver:
+            self._main_pane.display_path = None
+            return
+
+        resolved = self._config_path_resolver.resolve_file(customization)
+        self._main_pane.display_path = resolved
+
     def _update_subtitle(self) -> None:
         """Update subtitle to reflect current filter state."""
         parts = []
@@ -160,12 +216,15 @@ class LazyClaude(App):
         """Handle selection change in a type panel."""
         if self._main_pane:
             self._main_pane.customization = message.customization
+            self._update_display_path(message.customization)
+        self.refresh_bindings()
 
     def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
         """Handle drill down into a customization."""
         if self._main_pane:
             self._last_focused_panel = self._get_focused_panel()
             self._main_pane.customization = message.customization
+            self._update_display_path(message.customization)
             self._main_pane.focus()
 
     def on_type_panel_skill_file_selected(
@@ -174,6 +233,12 @@ class LazyClaude(App):
         """Handle skill file selection in the skills tree."""
         if self._main_pane:
             self._main_pane.selected_file = message.file_path
+            customization = self._main_pane.customization
+            if customization and self._config_path_resolver:
+                resolved = self._config_path_resolver.resolve_path(
+                    customization, message.file_path
+                )
+                self._main_pane.display_path = resolved
 
     async def action_quit(self) -> None:
         """Quit the application."""
@@ -198,11 +263,107 @@ class LazyClaude(App):
         else:
             file_path = customization.path
 
+        if customization.level == ConfigLevel.PLUGIN and self._config_path_resolver:
+            resolved = self._config_path_resolver.resolve_path(customization, file_path)
+            if resolved:
+                file_path = resolved
+
         if not file_path.exists():
             return
 
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(file_path)], shell=True)
+
+    def action_copy_config_path(self) -> None:
+        """Copy file path of selected customization or focused file to clipboard."""
+        if not self._main_pane or not self._main_pane.customization:
+            self.notify("No customization selected", severity="warning")
+            return
+
+        customization = self._main_pane.customization
+
+        if not self._config_path_resolver:
+            self.notify("Path resolver not initialized", severity="error")
+            return
+
+        file_path = self._main_pane.selected_file or customization.path
+        path = self._config_path_resolver.resolve_path(customization, file_path)
+
+        if not path:
+            self.notify("Cannot resolve path", severity="error")
+            return
+
+        path_str = str(path)
+        pyperclip.copy(path_str)
+        self.notify(f"Copied: {path_str}", severity="information")
+
+    def action_copy_customization(self) -> None:
+        """Copy selected customization to another level."""
+        if not self._main_pane or not self._main_pane.customization:
+            return
+
+        customization = self._main_pane.customization
+
+        if customization.type not in [
+            CustomizationType.SLASH_COMMAND,
+            CustomizationType.SUBAGENT,
+            CustomizationType.SKILL,
+        ]:
+            self._show_status_error(
+                f"Cannot copy {customization.type_label} customizations"
+            )
+            return
+
+        available = [
+            level
+            for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
+            if level != customization.level
+        ]
+
+        if not available:
+            self._show_status_error("No available target levels")
+            return
+
+        self._pending_customization = customization
+        self._panel_before_selector = self._get_focused_panel()
+        if self._level_selector:
+            self._level_selector.show(available, "copy")
+
+    def action_move_customization(self) -> None:
+        """Move selected customization to another level."""
+        if not self._main_pane or not self._main_pane.customization:
+            return
+
+        customization = self._main_pane.customization
+
+        if customization.type not in [
+            CustomizationType.SLASH_COMMAND,
+            CustomizationType.SUBAGENT,
+            CustomizationType.SKILL,
+        ]:
+            self._show_status_error(
+                f"Cannot move {customization.type_label} customizations"
+            )
+            return
+
+        if customization.level == ConfigLevel.PLUGIN:
+            self._show_status_error("Cannot move from plugin-level customizations")
+            return
+
+        available = [
+            level
+            for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
+            if level != customization.level
+        ]
+
+        if not available:
+            self._show_status_error("No available target levels")
+            return
+
+        self._pending_customization = customization
+        self._panel_before_selector = self._get_focused_panel()
+        if self._level_selector:
+            self._level_selector.show(available, "move")
 
     async def action_back(self) -> None:
         """Go back - return focus to panel from main pane, keep content visible."""
@@ -391,6 +552,70 @@ class LazyClaude(App):
         if self._filter_input:
             self._filter_input.hide()
 
+    def on_level_selector_level_selected(
+        self, message: LevelSelector.LevelSelected
+    ) -> None:
+        """Handle level selection from the level selector bar."""
+        if self._pending_customization:
+            self._handle_copy_or_move(
+                self._pending_customization, message.level, message.operation
+            )
+            self._pending_customization = None
+        self._restore_focus_after_selector()
+
+    def on_level_selector_selection_cancelled(
+        self,
+        message: LevelSelector.SelectionCancelled,  # noqa: ARG002
+    ) -> None:
+        """Handle level selector cancellation."""
+        self._pending_customization = None
+        self._restore_focus_after_selector()
+
+    def _restore_focus_after_selector(self) -> None:
+        """Restore focus to the panel that was focused before the level selector."""
+        if self._panel_before_selector:
+            self._panel_before_selector.focus()
+            self._panel_before_selector = None
+        elif self._panels:
+            self._panels[0].focus()
+
+    def _handle_copy_or_move(
+        self, customization: Customization, target_level: ConfigLevel, operation: str
+    ) -> None:
+        """Handle copy or move operation."""
+        writer = CustomizationWriter()
+
+        success, msg = writer.write_customization(
+            customization,
+            target_level,
+            self._user_config_path or Path.home() / ".claude",
+            self._project_config_path or Path.cwd() / ".claude",
+        )
+
+        if not success:
+            self._show_status_error(msg)
+            return
+
+        if operation == "move":
+            delete_success, delete_msg = writer.delete_customization(customization)
+            if not delete_success:
+                self._show_status_error(
+                    f"Copied but failed to delete source: {delete_msg}"
+                )
+                return
+            msg = f"Moved '{customization.name}' to {target_level.label} level"
+
+        self._show_status_success(msg)
+        self.action_refresh()
+
+    def _show_status_success(self, message: str) -> None:
+        """Show success toast notification."""
+        self.notify(message, severity="information", timeout=3.0)
+
+    def _show_status_error(self, message: str) -> None:
+        """Show error toast notification."""
+        self.notify(message, severity="error", timeout=3.0)
+
     def action_toggle_help(self) -> None:
         """Toggle help overlay visibility."""
         if self._help_visible:
@@ -419,6 +644,8 @@ class LazyClaude(App):
 
 [bold]Actions[/]
   e              Open in $EDITOR
+  c              Copy to level
+  m              Move to level
   R              Refresh from disk
   ?              Toggle this help
   q              Quit
