@@ -555,16 +555,12 @@ class LazyClaude(App):
         self.action_refresh()
 
     def _show_status_success(self, message: str) -> None:
-        """Show success message in subtitle temporarily."""
-        original = self.sub_title
-        self.sub_title = f"[green]✓[/green] {message}"
-        self.set_timer(2.0, lambda: setattr(self, "sub_title", original))
+        """Show success toast notification."""
+        self.notify(message, severity="information", timeout=3.0)
 
     def _show_status_error(self, message: str) -> None:
-        """Show error message in subtitle temporarily."""
-        original = self.sub_title
-        self.sub_title = f"[red]✗[/red] {message}"
-        self.set_timer(2.0, lambda: setattr(self, "sub_title", original))
+        """Show error toast notification."""
+        self.notify(message, severity="error", timeout=3.0)
 
     def _get_level_label(self, level: ConfigLevel) -> str:
         """Get human-readable label for config level."""
