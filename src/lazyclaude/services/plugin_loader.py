@@ -92,9 +92,11 @@ class PluginLoader:
 
         short_name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
         install_path = Path(install_path_str)
+        version = plugin_data.get("version", "unknown")
 
         if not install_path.is_dir() and install_path.parent.is_dir():
             install_path = self._find_latest_version_dir(install_path.parent)
+            version = install_path.name
 
         is_enabled = True
         if self._registry:
@@ -103,18 +105,34 @@ class PluginLoader:
         return PluginInfo(
             plugin_id=plugin_id,
             short_name=short_name,
-            version=plugin_data.get("version", "unknown"),
+            version=version,
             install_path=install_path,
             is_local=plugin_data.get("isLocal", False),
             is_enabled=is_enabled,
         )
 
     def _find_latest_version_dir(self, parent_dir: Path) -> Path:
-        """Find the latest version directory in a plugin parent directory."""
+        """Find the latest version directory in a plugin parent directory.
+
+        Uses semantic version comparison (e.g., "10.0.0" > "2.0.0").
+        Falls back to string comparison for non-semver directory names.
+        """
         try:
             subdirs = [d for d in parent_dir.iterdir() if d.is_dir()]
             if subdirs:
-                return max(subdirs, key=lambda d: d.name)
+                return max(subdirs, key=lambda d: self._parse_version(d.name))
         except OSError:
             pass
         return parent_dir
+
+    @staticmethod
+    def _parse_version(version_str: str) -> tuple[int, ...] | tuple[str]:
+        """Parse version string into comparable tuple.
+
+        Returns tuple of ints for semver (e.g., "1.2.3" -> (1, 2, 3)).
+        Returns tuple with original string for non-semver names.
+        """
+        try:
+            return tuple(int(part) for part in version_str.split("."))
+        except ValueError:
+            return (version_str,)
