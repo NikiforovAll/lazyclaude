@@ -93,12 +93,8 @@ class PluginLoader:
         short_name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
         install_path = Path(install_path_str)
 
-        if install_path.parent.is_dir():
-            short_name_path = install_path.parent / short_name
-            if short_name_path.is_dir() and (
-                short_name_path != install_path or not install_path.is_dir()
-            ):
-                install_path = short_name_path
+        if not install_path.is_dir() and install_path.parent.is_dir():
+            install_path = self._find_latest_version_dir(install_path.parent)
 
         is_enabled = True
         if self._registry:
@@ -112,3 +108,13 @@ class PluginLoader:
             is_local=plugin_data.get("isLocal", False),
             is_enabled=is_enabled,
         )
+
+    def _find_latest_version_dir(self, parent_dir: Path) -> Path:
+        """Find the latest version directory in a plugin parent directory."""
+        try:
+            subdirs = [d for d in parent_dir.iterdir() if d.is_dir()]
+            if subdirs:
+                return max(subdirs, key=lambda d: d.name)
+        except OSError:
+            pass
+        return parent_dir
