@@ -548,8 +548,7 @@ class LazyClaude(App):
                     f"Copied but failed to delete source: {delete_msg}"
                 )
                 return
-            level_label = self._get_level_label(target_level)
-            msg = f"Moved '{customization.name}' to {level_label} level"
+            msg = f"Moved '{customization.name}' to {target_level.label} level"
 
         self._show_status_success(msg)
         self.action_refresh()
@@ -561,17 +560,6 @@ class LazyClaude(App):
     def _show_status_error(self, message: str) -> None:
         """Show error toast notification."""
         self.notify(message, severity="error", timeout=3.0)
-
-    def _get_level_label(self, level: ConfigLevel) -> str:
-        """Get human-readable label for config level."""
-        if level == ConfigLevel.USER:
-            return "User"
-        elif level == ConfigLevel.PROJECT:
-            return "Project"
-        elif level == ConfigLevel.PLUGIN:
-            return "Plugin"
-        else:
-            return str(level)
 
     def action_toggle_help(self) -> None:
         """Toggle help overlay visibility."""

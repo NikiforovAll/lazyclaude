@@ -39,10 +39,9 @@ class CustomizationWriter:
             target_path = self._build_target_path(customization, base_path)
 
             if self._check_conflict(customization, target_path):
-                level_label = self._get_level_label(target_level)
                 return (
                     False,
-                    f"{customization.type_label} '{customization.name}' already exists at {level_label} level",
+                    f"{customization.type_label} '{customization.name}' already exists at {target_level.label} level",
                 )
 
             self._ensure_parent_dirs(target_path)
@@ -52,8 +51,10 @@ class CustomizationWriter:
             else:
                 self._write_file(customization.path, target_path)
 
-            level_label = self._get_level_label(target_level)
-            return (True, f"Copied '{customization.name}' to {level_label} level")
+            return (
+                True,
+                f"Copied '{customization.name}' to {target_level.label} level",
+            )
 
         except PermissionError as e:
             return (False, f"Permission denied writing to {e.filename}")
@@ -163,14 +164,3 @@ class CustomizationWriter:
     def _delete_skill_directory(self, skill_dir: Path) -> None:
         """Recursively delete skill directory."""
         shutil.rmtree(skill_dir)
-
-    def _get_level_label(self, level: ConfigLevel) -> str:
-        """Get human-readable label for config level."""
-        if level == ConfigLevel.USER:
-            return "User"
-        elif level == ConfigLevel.PROJECT:
-            return "Project"
-        elif level == ConfigLevel.PLUGIN:
-            return "Plugin"
-        else:
-            return str(level)
