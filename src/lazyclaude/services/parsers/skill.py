@@ -44,7 +44,7 @@ def _read_skill_files(
         elif entry.is_file():
             try:
                 content = entry.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 content = None
             files.append(
                 SkillFile(
