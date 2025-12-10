@@ -276,14 +276,15 @@ class LazyClaude(App):
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(file_path)], shell=True)
 
-    def _open_path_in_editor(self, path: Path) -> None:
-        """Open a path in $EDITOR with error handling."""
-        if not path.exists():
-            self.notify(f"Path not found: {path}", severity="warning")
+    def _open_paths_in_editor(self, paths: list[Path]) -> None:
+        """Open paths in $EDITOR with error handling."""
+        valid_paths = [p for p in paths if p.exists()]
+        if not valid_paths:
+            self.notify("No valid paths to open", severity="warning")
             return
 
         editor = os.environ.get("EDITOR", "vi")
-        subprocess.Popen([editor, str(path)], shell=True)
+        subprocess.Popen([editor] + [str(p) for p in valid_paths], shell=True)
 
     def action_open_user_config(self) -> None:
         """Open user config folder (~/.claude/) and settings file in $EDITOR."""
@@ -296,8 +297,7 @@ class LazyClaude(App):
             self.notify("No user config found", severity="warning")
             return
 
-        editor = os.environ.get("EDITOR", "vi")
-        subprocess.Popen([editor] + [str(p) for p in paths_to_open], shell=True)
+        self._open_paths_in_editor(paths_to_open)
 
     def action_copy_config_path(self) -> None:
         """Copy file path of selected customization or focused file to clipboard."""
