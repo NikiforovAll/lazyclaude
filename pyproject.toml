@@ -26,7 +26,6 @@ dependencies = [
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "pyperclip>=1.11.0",
-    "types-pyperclip>=1.9.0.20250801",
 ]
 
 [project.urls]
@@ -109,5 +108,6 @@ dev = [
     "pytest>=9.0.1",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.8",
+    "types-pyperclip>=1.9.0.20250801",
     "types-pyyaml>=6.0.12.20250915",
 ]

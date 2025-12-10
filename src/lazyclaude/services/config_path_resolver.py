@@ -15,15 +15,15 @@ class ConfigPathResolver:
     def resolve_file(self, customization: Customization) -> Path | None:
         """Resolve the file path for a customization.
 
-        For non-PLUGIN levels: returns customization.path as-is.
-        For PLUGIN level with directory source: translates cached path to source path.
-        For PLUGIN level without directory source: returns customization.path as-is.
+        For non-PLUGIN levels: returns path as-is.
+        For PLUGIN level with directory source: translates install path to source path.
+        For PLUGIN level without directory source: returns path as-is.
 
         Args:
             customization: The customization to resolve path for.
 
         Returns:
-            Absolute path to the file, or None if cannot resolve.
+            Resolved absolute path, or None if customization.path is None.
         """
         return self.resolve_path(customization, customization.path)
 
@@ -33,7 +33,7 @@ class ConfigPathResolver:
         """Resolve any file path within a customization's context.
 
         For non-PLUGIN levels: returns file_path as-is.
-        For PLUGIN level with directory source: translates cached path to source path.
+        For PLUGIN level with directory source: translates install path to source path.
         For PLUGIN level without directory source: returns file_path as-is.
 
         Args:

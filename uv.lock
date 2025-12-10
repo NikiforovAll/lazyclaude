@@ -76,7 +76,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "textual" },
-    { name = "types-pyperclip" },
 ]
 
 [package.optional-dependencies]
@@ -96,6 +95,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "types-pyperclip" },
     { name = "types-pyyaml" },
 ]
 
@@ -110,7 +110,6 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "textual", specifier = ">=0.89.0" },
-    { name = "types-pyperclip", specifier = ">=1.9.0.20250801" },
 ]
 provides-extras = ["dev"]
 
@@ -122,6 +121,7 @@ dev = [
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "ruff", specifier = ">=0.14.8" },
+    { name = "types-pyperclip", specifier = ">=1.9.0.20250801" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
 ]
 

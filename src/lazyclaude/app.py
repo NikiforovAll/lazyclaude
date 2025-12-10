@@ -215,16 +215,16 @@ class LazyClaude(App):
     ) -> None:
         """Handle selection change in a type panel."""
         if self._main_pane:
-            self._main_pane.customization = message.customization
             self._update_display_path(message.customization)
+            self._main_pane.customization = message.customization
         self.refresh_bindings()
 
     def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
         """Handle drill down into a customization."""
         if self._main_pane:
             self._last_focused_panel = self._get_focused_panel()
-            self._main_pane.customization = message.customization
             self._update_display_path(message.customization)
+            self._main_pane.customization = message.customization
             self._main_pane.focus()
 
     def on_type_panel_skill_file_selected(
@@ -235,8 +235,9 @@ class LazyClaude(App):
             self._main_pane.selected_file = message.file_path
             customization = self._main_pane.customization
             if customization and self._config_path_resolver:
+                path_to_resolve = message.file_path or customization.path
                 resolved = self._config_path_resolver.resolve_path(
-                    customization, message.file_path
+                    customization, path_to_resolve
                 )
                 self._main_pane.display_path = resolved
 

@@ -97,12 +97,13 @@ class MainPane(Widget):
             return "[dim italic]Select a customization[/]"
 
         c = self.customization
+        display_path = self.display_path or c.path
         lines = [
             f"[bold]{c.name}[/]",
             "",
             f"[dim]Type:[/] {c.type_label}",
             f"[dim]Level:[/] {c.level_label}",
-            f"[dim]Path:[/] {c.path}",
+            f"[dim]Path:[/] {display_path}",
         ]
 
         if c.plugin_info:
@@ -117,6 +118,7 @@ class MainPane(Widget):
                     f"[dim]Plugin:[/] {c.plugin_info.plugin_id}",
                     f"[dim]Version:[/] {c.plugin_info.version}",
                     f"[dim]Status:[/] {status}",
+                    f"[dim]Cached:[/] {c.plugin_info.install_path}",
                 ]
             )
 
@@ -263,11 +265,12 @@ class MainPane(Widget):
 
     def watch_customization(
         self,
-        customization: Customization | None,  # noqa: ARG002
+        customization: Customization | None,
     ) -> None:
         """React to customization changes."""
         self.selected_file = None
-        self.display_path = None
+        if customization is None:
+            self.display_path = None
         self.border_subtitle = self._render_footer()
         self._refresh_display()
 
@@ -279,6 +282,7 @@ class MainPane(Widget):
     def watch_display_path(self, path: Path | None) -> None:  # noqa: ARG002
         """React to display path changes."""
         self.border_subtitle = self._render_footer()
+        self.refresh()
 
     def _refresh_display(self) -> None:
         """Refresh the pane display."""

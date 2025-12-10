@@ -139,6 +139,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             )
 
         customizations.extend(self._discover_memory_files())
+        customizations.extend(self._discover_rules())
         customizations.extend(self._discover_mcps())
         customizations.extend(self._discover_hooks())
         customizations.extend(self._discover_plugins())
@@ -204,6 +205,30 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             if memory_file.is_file() and resolved not in seen_paths:
                 seen_paths.add(resolved)
                 customizations.append(parser.parse(memory_file, ConfigLevel.PROJECT))
+
+        return customizations
+
+    def _discover_rules(self) -> list[Customization]:
+        """Discover project rules from .claude/rules/ directory."""
+        customizations: list[Customization] = []
+        parser = MemoryFileParser()
+
+        rules_dir = self.project_config_path / "rules"
+        if not rules_dir.is_dir():
+            return customizations
+
+        seen_paths: set[Path] = set()
+        for rule_file in rules_dir.rglob("*.md"):
+            if not rule_file.is_file():
+                continue
+            resolved = rule_file.resolve()
+            if resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+
+            customization = parser.parse(rule_file, ConfigLevel.PROJECT)
+            customization.name = str(rule_file.relative_to(rules_dir))
+            customizations.append(customization)
 
         return customizations
 
