@@ -650,7 +650,7 @@ class LazyClaude(App):
 
     def _show_help(self) -> None:
         """Show help overlay."""
-        help_content = """[bold]LazyClaude Help[/]
+        help_content = r"""[bold]LazyClaude Help[/]
 
 [bold]Navigation[/]
   j/k or ↑/↓     Move up/down in list
