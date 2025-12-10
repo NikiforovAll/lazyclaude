@@ -105,11 +105,12 @@ FilterInput Input {
 
 /* Help Overlay */
 #help-overlay {
-    align: center middle;
+    layer: overlay;
+    dock: right;
     width: 60;
-    height: auto;
-    max-height: 80%;
+    height: 100%;
     border: double $accent;
     background: $surface;
     padding: 1 2;
+    overflow-y: auto;
 }
