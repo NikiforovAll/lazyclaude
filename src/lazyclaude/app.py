@@ -57,6 +57,7 @@ class LazyClaude(App):
         Binding("4", "focus_panel_4", "Panel 4", show=False),
         Binding("5", "focus_panel_5", "Panel 5", show=False),
         Binding("6", "focus_panel_6", "Panel 6", show=False),
+        Binding("ctrl+u", "open_user_config", "User Config", show=False),
     ]
 
     TITLE = "LazyClaude"
@@ -274,6 +275,29 @@ class LazyClaude(App):
 
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(file_path)], shell=True)
+
+    def _open_path_in_editor(self, path: Path) -> None:
+        """Open a path in $EDITOR with error handling."""
+        if not path.exists():
+            self.notify(f"Path not found: {path}", severity="warning")
+            return
+
+        editor = os.environ.get("EDITOR", "vi")
+        subprocess.Popen([editor, str(path)], shell=True)
+
+    def action_open_user_config(self) -> None:
+        """Open user config folder (~/.claude/) and settings file in $EDITOR."""
+        config_path = Path.home() / ".claude"
+        settings_path = Path.home() / ".claude.json"
+
+        paths_to_open = [p for p in [config_path, settings_path] if p.exists()]
+
+        if not paths_to_open:
+            self.notify("No user config found", severity="warning")
+            return
+
+        editor = os.environ.get("EDITOR", "vi")
+        subprocess.Popen([editor] + [str(p) for p in paths_to_open], shell=True)
 
     def action_copy_config_path(self) -> None:
         """Copy file path of selected customization or focused file to clipboard."""
@@ -629,11 +653,12 @@ class LazyClaude(App):
         help_content = """[bold]LazyClaude Help[/]
 
 [bold]Navigation[/]
-  j/k or arrows  Move up/down in list
+  j/k or ↑/↓     Move up/down in list
+  d/u            Page down/up (detail pane)
   g/G            Go to top/bottom
-  1-6            Jump to panel by number
+  0-6            Focus panel by number
   Tab            Switch between panels
-  Enter          View details
+  Enter          Drill down
   Esc            Go back
 
 [bold]Filtering[/]
@@ -642,12 +667,18 @@ class LazyClaude(App):
   u              Show user-level only
   p              Show project-level only
   P              Show plugin-level only
+  D              Toggle disabled plugins
+
+[bold]Views[/]
+  \[ / ]         Switch content/metadata view
 
 [bold]Actions[/]
   e              Open in $EDITOR
   c              Copy to level
   m              Move to level
-  R              Refresh from disk
+  C              Copy path to clipboard
+  r              Refresh from disk
+  Ctrl+u         Open user config
   ?              Toggle this help
   q              Quit
 

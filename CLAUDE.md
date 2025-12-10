@@ -48,12 +48,20 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 |-----|--------|-------|
 | `q` | Quit | Global |
 | `?` | Help | Global |
-| `R` | Refresh | Global |
+| `r` | Refresh | Global |
 | `/` | Search | Global |
 | `e` | Open in $EDITOR | Global |
+| `c` | Copy to level | Global |
+| `m` | Move to level | Global |
+| `C` | Copy path to clipboard | Global |
+| `Ctrl+u` | Open user config (~/.claude, ~/.claude.json) | Global |
 | `a`/`u`/`p`/`P` | Filter: All/User/Project/Plugin | Global |
-| `1`-`6` | Focus panel by number | Global |
+| `D` | Toggle disabled plugins | Global |
+| `[`/`]` | Switch content/metadata view | Global |
+| `Tab` | Switch between panels | Global |
+| `0`-`6` | Focus panel by number | Global |
 | `j`/`k` | Navigate up/down | List |
+| `d`/`u` | Page down/up | Detail pane |
 | `g`/`G` | Go to top/bottom | List |
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
