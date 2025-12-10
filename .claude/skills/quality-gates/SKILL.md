@@ -33,7 +33,7 @@ Or run individual checks as needed using the commands above.
 1. Run the `.claude/skills/quality-gates/scripts/check.sh` script from the project root
 2. Review any failures and fix issues
 3. Re-run until all checks pass
-4. Preset user with consize summary of results in markdown table format
+4. Present user with concise summary of results in markdown table format
 
 ## Common Issues
 
