@@ -41,6 +41,8 @@ class MainPane(Widget):
         Binding("k", "scroll_up", "Scroll up", show=False),
         Binding("down", "scroll_down", "Scroll down", show=False),
         Binding("up", "scroll_up", "Scroll up", show=False),
+        Binding("d", "scroll_page_down", "Page down", show=False),
+        Binding("u", "scroll_page_up", "Page up", show=False),
         Binding("g", "scroll_top", "Scroll top", show=False),
         Binding(
             "G", "scroll_bottom", "Scroll bottom", show=False, key_display="shift+g"
@@ -315,3 +317,11 @@ class MainPane(Widget):
     def action_scroll_bottom(self) -> None:
         """Scroll to bottom."""
         self.scroll_end(animate=False)
+
+    def action_scroll_page_down(self) -> None:
+        """Scroll page down."""
+        self.scroll_page_down(animate=False)
+
+    def action_scroll_page_up(self) -> None:
+        """Scroll page up."""
+        self.scroll_page_up(animate=False)
