@@ -172,6 +172,8 @@ Use strict mode.
         all_customizations = service.discover_all()
 
         rule_names = [
-            c.name for c in all_customizations if c.type == CustomizationType.MEMORY_FILE
+            c.name
+            for c in all_customizations
+            if c.type == CustomizationType.MEMORY_FILE
         ]
         assert "test-rule.md" in rule_names
