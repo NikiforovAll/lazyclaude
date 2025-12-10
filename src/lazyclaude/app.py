@@ -4,6 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
+import pyperclip
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -14,6 +15,7 @@ from lazyclaude.models.customization import (
     Customization,
     CustomizationType,
 )
+from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.writer import CustomizationWriter
@@ -36,6 +38,7 @@ class LazyClaude(App):
         Binding("e", "open_in_editor", "Edit"),
         Binding("c", "copy_customization", "Copy"),
         Binding("m", "move_customization", "Move"),
+        Binding("C", "copy_config_path", "Copy Path"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
         Binding("escape", "back", "Back", show=False),
@@ -87,6 +90,7 @@ class LazyClaude(App):
         self._last_focused_panel: TypePanel | None = None
         self._pending_customization: Customization | None = None
         self._panel_before_selector: TypePanel | None = None
+        self._config_path_resolver: ConfigPathResolver | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -116,6 +120,9 @@ class LazyClaude(App):
         self.theme = "gruvbox"
         self._load_customizations()
         self._update_status_panel()
+        self._config_path_resolver = ConfigPathResolver(
+            self._discovery_service._plugin_loader,
+        )
 
     def check_action(
         self,
@@ -171,6 +178,18 @@ class LazyClaude(App):
             plugin_enabled=self._plugin_enabled_filter,
         )
 
+    def _update_display_path(self, customization: Customization | None) -> None:
+        """Update main pane display path with resolved path for plugins."""
+        if not self._main_pane:
+            return
+
+        if not customization or not self._config_path_resolver:
+            self._main_pane.display_path = None
+            return
+
+        resolved = self._config_path_resolver.resolve_file(customization)
+        self._main_pane.display_path = resolved
+
     def _update_subtitle(self) -> None:
         """Update subtitle to reflect current filter state."""
         parts = []
@@ -196,6 +215,7 @@ class LazyClaude(App):
     ) -> None:
         """Handle selection change in a type panel."""
         if self._main_pane:
+            self._update_display_path(message.customization)
             self._main_pane.customization = message.customization
         self.refresh_bindings()
 
@@ -203,6 +223,7 @@ class LazyClaude(App):
         """Handle drill down into a customization."""
         if self._main_pane:
             self._last_focused_panel = self._get_focused_panel()
+            self._update_display_path(message.customization)
             self._main_pane.customization = message.customization
             self._main_pane.focus()
 
@@ -212,6 +233,13 @@ class LazyClaude(App):
         """Handle skill file selection in the skills tree."""
         if self._main_pane:
             self._main_pane.selected_file = message.file_path
+            customization = self._main_pane.customization
+            if customization and self._config_path_resolver:
+                path_to_resolve = message.file_path or customization.path
+                resolved = self._config_path_resolver.resolve_path(
+                    customization, path_to_resolve
+                )
+                self._main_pane.display_path = resolved
 
     async def action_quit(self) -> None:
         """Quit the application."""
@@ -236,11 +264,39 @@ class LazyClaude(App):
         else:
             file_path = customization.path
 
+        if customization.level == ConfigLevel.PLUGIN and self._config_path_resolver:
+            resolved = self._config_path_resolver.resolve_path(customization, file_path)
+            if resolved:
+                file_path = resolved
+
         if not file_path.exists():
             return
 
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(file_path)], shell=True)
+
+    def action_copy_config_path(self) -> None:
+        """Copy file path of selected customization or focused file to clipboard."""
+        if not self._main_pane or not self._main_pane.customization:
+            self.notify("No customization selected", severity="warning")
+            return
+
+        customization = self._main_pane.customization
+
+        if not self._config_path_resolver:
+            self.notify("Path resolver not initialized", severity="error")
+            return
+
+        file_path = self._main_pane.selected_file or customization.path
+        path = self._config_path_resolver.resolve_path(customization, file_path)
+
+        if not path:
+            self.notify("Cannot resolve path", severity="error")
+            return
+
+        path_str = str(path)
+        pyperclip.copy(path_str)
+        self.notify(f"Copied: {path_str}", severity="information")
 
     def action_copy_customization(self) -> None:
         """Copy selected customization to another level."""

@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 LazyClaude is a TUI application for visualizing Claude Code customizations (Slash Commands, Subagents, Skills, Memory Files, MCPs, Hooks). Built with the Textual framework following lazygit-style keyboard ergonomics.
@@ -82,8 +80,6 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
 4. Selection changes emit `TypePanel.SelectionChanged` messages handled by `App` to update `MainPane`
 
 **CustomizationTypes**: SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
-
-**Theme Sync**: App theme (Textual) maps to syntax highlighting theme (Pygments) via `TEXTUAL_TO_PYGMENTS_THEME` in `detail_pane.py`.
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 
