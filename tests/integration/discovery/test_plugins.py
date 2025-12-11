@@ -36,7 +36,11 @@ class TestPluginDiscovery:
         fake_project_root: Path,
         fs: FakeFilesystem,
     ) -> None:
-        disabled_plugin_dir = Path("/fake/home/.claude/plugins/disabled-plugin")
+        """Test that disabled plugins are still discovered but marked as disabled."""
+        # V2 uses versioned cache paths
+        disabled_plugin_dir = Path(
+            "/fake/home/.claude/plugins/cache/test/disabled-plugin/1.0.0"
+        )
         fs.create_dir(disabled_plugin_dir / "commands")
         fs.create_file(
             disabled_plugin_dir / "commands" / "disabled-cmd.md",

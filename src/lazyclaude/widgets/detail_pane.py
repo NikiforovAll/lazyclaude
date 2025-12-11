@@ -120,6 +120,7 @@ class MainPane(Widget):
                     f"[dim]Plugin:[/] {c.plugin_info.plugin_id}",
                     f"[dim]Version:[/] {c.plugin_info.version}",
                     f"[dim]Status:[/] {status}",
+                    f"[dim]Scope:[/] {c.plugin_info.scope.name.lower()}",
                     f"[dim]Cached:[/] {c.plugin_info.install_path}",
                 ]
             )

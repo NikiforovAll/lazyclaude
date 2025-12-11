@@ -5,22 +5,41 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lazyclaude.models.customization import PluginInfo
+from lazyclaude.models.customization import PluginInfo, PluginScope
+
+
+@dataclass
+class PluginInstallation:
+    """Single installation of a plugin (user or project-scoped)."""
+
+    scope: str  # "user" or "project"
+    install_path: str
+    version: str
+    is_local: bool = False
+    project_path: str | None = None
 
 
 @dataclass
 class PluginRegistry:
     """Container for installed and enabled plugin information."""
 
-    installed: dict[str, dict[str, Any]]
-    enabled: dict[str, bool]
+    installed: dict[str, list[PluginInstallation]]
+    user_enabled: dict[str, bool]
+    project_enabled: dict[str, bool]
 
 
 class PluginLoader:
     """Loads plugin configuration from the filesystem."""
 
-    def __init__(self, user_config_path: Path) -> None:
+    def __init__(
+        self,
+        user_config_path: Path,
+        project_config_path: Path | None = None,
+        project_root: Path | None = None,
+    ) -> None:
         self.user_config_path = user_config_path
+        self.project_config_path = project_config_path
+        self.project_root = project_root
         self._registry: PluginRegistry | None = None
 
     def load_registry(self) -> PluginRegistry:
@@ -28,44 +47,101 @@ class PluginLoader:
         if self._registry is not None:
             return self._registry
 
-        installed = self._load_json_dict(
-            self.user_config_path / "plugins" / "installed_plugins.json",
-            "plugins",
-        )
-        enabled = self._load_json_dict(
+        v2_file = self.user_config_path / "plugins" / "installed_plugins_v2.json"
+        installed = self._load_v2_plugins(v2_file) if v2_file.is_file() else {}
+
+        user_enabled = self._load_json_dict(
             self.user_config_path / "settings.json",
             "enabledPlugins",
         )
 
-        self._registry = PluginRegistry(installed=installed, enabled=enabled)
+        project_enabled: dict[str, bool] = {}
+        if self.project_config_path:
+            project_enabled = self._load_json_dict(
+                self.project_config_path / "settings.json",
+                "enabledPlugins",
+            )
+
+        self._registry = PluginRegistry(
+            installed=installed,
+            user_enabled=user_enabled,
+            project_enabled=project_enabled,
+        )
         return self._registry
+
+    def _load_v2_plugins(self, path: Path) -> dict[str, list[PluginInstallation]]:
+        """Parse V2 format where plugins value is a list."""
+        if not path.is_file():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            plugins_data = data.get("plugins", {})
+            result: dict[str, list[PluginInstallation]] = {}
+
+            for plugin_id, installations in plugins_data.items():
+                result[plugin_id] = [
+                    PluginInstallation(
+                        scope=inst.get("scope", "user"),
+                        install_path=inst.get("installPath", ""),
+                        version=inst.get("version", "unknown"),
+                        is_local=inst.get("isLocal", False),
+                        project_path=inst.get("projectPath"),
+                    )
+                    for inst in installations
+                ]
+            return result
+        except (json.JSONDecodeError, OSError):
+            return {}
 
     def get_enabled_plugins(self) -> list[PluginInfo]:
         """Get list of enabled plugin infos with resolved install paths."""
-        registry = self.load_registry()
-        plugins: list[PluginInfo] = []
-
-        for plugin_id, plugin_data in registry.installed.items():
-            if not registry.enabled.get(plugin_id, True):
-                continue
-
-            plugin_info = self._create_plugin_info(plugin_id, plugin_data)
-            if plugin_info and plugin_info.install_path.is_dir():
-                plugins.append(plugin_info)
-
-        return plugins
+        all_plugins = self.get_all_plugins()
+        return [p for p in all_plugins if p.is_enabled]
 
     def get_all_plugins(self) -> list[PluginInfo]:
-        """Get list of ALL plugin infos (enabled and disabled) with resolved install paths."""
+        """Get list of ALL plugin infos (enabled and disabled) with resolved install paths.
+
+        Uses two-phase discovery:
+        1. User plugins: All entries with scope="user"
+        2. Project plugins: Entries from project's settings.json enabledPlugins
+           that have scope="project" and matching projectPath
+        """
         registry = self.load_registry()
         plugins: list[PluginInfo] = []
 
-        for plugin_id, plugin_data in registry.installed.items():
-            plugin_info = self._create_plugin_info(plugin_id, plugin_data)
-            if plugin_info and plugin_info.install_path.is_dir():
-                plugins.append(plugin_info)
+        # Phase 1: User-scoped plugins
+        for plugin_id, installations in registry.installed.items():
+            for installation in installations:
+                if installation.scope == "user":
+                    plugin_info = self._create_plugin_info(
+                        plugin_id, installation, is_project=False
+                    )
+                    if plugin_info and plugin_info.install_path.is_dir():
+                        plugins.append(plugin_info)
+
+        # Phase 2: Project-scoped plugins (driven by project settings.json)
+        for plugin_id in registry.project_enabled:
+            installations = registry.installed.get(plugin_id, [])
+            for installation in installations:
+                if installation.scope == "project" and self._matches_current_project(
+                    installation.project_path
+                ):
+                    plugin_info = self._create_plugin_info(
+                        plugin_id, installation, is_project=True
+                    )
+                    if plugin_info and plugin_info.install_path.is_dir():
+                        plugins.append(plugin_info)
 
         return plugins
+
+    def _matches_current_project(self, project_path: str | None) -> bool:
+        """Check if project_path matches current project root."""
+        if not project_path or not self.project_root:
+            return False
+        try:
+            return Path(project_path).resolve() == self.project_root.resolve()
+        except OSError:
+            return False
 
     def refresh(self) -> None:
         """Clear cached registry to force reload."""
@@ -79,7 +155,7 @@ class PluginLoader:
         2. Reading marketplace.json to find the plugin's relative source path
         3. Returning the resolved absolute path
 
-        For other plugins: returns the installPath from installed_plugins.json
+        For other plugins: returns the installPath from installed_plugins_v2.json
 
         Args:
             plugin_id: Plugin identifier (e.g., "handbook@cc-handbook")
@@ -105,11 +181,11 @@ class PluginLoader:
                         if plugin_source:
                             return plugin_source
 
+        # Fallback to install path from V2 registry
         registry = self.load_registry()
-        plugin_data = registry.installed.get(plugin_id, {})
-        install_path_str = plugin_data.get("installPath")
-        if install_path_str:
-            return Path(install_path_str)
+        installations = registry.installed.get(plugin_id, [])
+        if installations:
+            return Path(installations[0].install_path)
 
         return None
 
@@ -174,32 +250,45 @@ class PluginLoader:
             return {}
 
     def _create_plugin_info(
-        self, plugin_id: str, plugin_data: dict[str, Any]
+        self,
+        plugin_id: str,
+        installation: PluginInstallation,
+        is_project: bool,
     ) -> PluginInfo | None:
-        """Create PluginInfo from plugin data."""
-        install_path_str = plugin_data.get("installPath")
-        if not install_path_str:
+        """Create PluginInfo from V2 installation data."""
+        if not installation.install_path:
             return None
 
         short_name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
-        install_path = Path(install_path_str)
-        version = plugin_data.get("version", "unknown")
+        install_path = Path(installation.install_path)
+        version = installation.version
 
         if not install_path.is_dir() and install_path.parent.is_dir():
             install_path = self._find_latest_version_dir(install_path.parent)
             version = install_path.name
 
+        # Determine enabled status based on scope
         is_enabled = True
         if self._registry:
-            is_enabled = self._registry.enabled.get(plugin_id, True)
+            if is_project:
+                is_enabled = self._registry.project_enabled.get(plugin_id, True)
+            else:
+                is_enabled = self._registry.user_enabled.get(plugin_id, True)
+
+        scope = PluginScope.PROJECT if is_project else PluginScope.USER
+        project_path = (
+            Path(installation.project_path) if installation.project_path else None
+        )
 
         return PluginInfo(
             plugin_id=plugin_id,
             short_name=short_name,
             version=version,
             install_path=install_path,
-            is_local=plugin_data.get("isLocal", False),
+            is_local=installation.is_local,
             is_enabled=is_enabled,
+            scope=scope,
+            project_path=project_path,
         )
 
     def _find_latest_version_dir(self, parent_dir: Path) -> Path:

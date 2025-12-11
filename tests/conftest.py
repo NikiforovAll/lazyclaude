@@ -135,19 +135,23 @@ def project_config_path(fake_project_root: Path, fs: FakeFilesystem) -> Path:
 
 @pytest.fixture
 def plugins_config(user_config_path: Path, fs: FakeFilesystem) -> Path:
-    """Create plugins configuration with installed_plugins.json and plugin directories."""
+    """Create plugins configuration with installed_plugins_v2.json and plugin directories."""
     plugins_dir = user_config_path / "plugins"
     fs.create_dir(plugins_dir)
 
     fs.add_real_file(
-        FIXTURES_DIR / "plugins" / "installed_plugins.json",
-        target_path=plugins_dir / "installed_plugins.json",
+        FIXTURES_DIR / "plugins" / "installed_plugins_v2.json",
+        target_path=plugins_dir / "installed_plugins_v2.json",
         read_only=False,
     )
 
+    # V2 uses cache directory with versioned paths
+    cache_dir = plugins_dir / "cache" / "test"
+    fs.create_dir(cache_dir)
+
     fs.add_real_directory(
         FIXTURES_DIR / "plugins" / "example-plugin",
-        target_path=plugins_dir / "example-plugin",
+        target_path=cache_dir / "example-plugin" / "1.0.0",
         read_only=False,
     )
 

@@ -26,6 +26,13 @@ class ConfigLevel(Enum):
         return labels[self]
 
 
+class PluginScope(Enum):
+    """Scope where a plugin is installed."""
+
+    USER = auto()  # Global user installation
+    PROJECT = auto()  # Project-specific installation
+
+
 class CustomizationType(Enum):
     """Type of Claude Code customization."""
 
@@ -101,6 +108,8 @@ class PluginInfo:
     install_path: Path
     is_local: bool = False
     is_enabled: bool = True
+    scope: PluginScope = PluginScope.USER
+    project_path: Path | None = None
 
 
 @dataclass

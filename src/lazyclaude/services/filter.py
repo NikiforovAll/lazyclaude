@@ -6,6 +6,7 @@ from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
+    PluginScope,
 )
 
 
@@ -67,7 +68,7 @@ class FilterService(IFilterService):
         result = customizations
 
         if level is not None:
-            result = [c for c in result if c.level == level]
+            result = [c for c in result if self._matches_level(c, level)]
 
         if plugin_enabled is not None:
             result = [
@@ -81,6 +82,21 @@ class FilterService(IFilterService):
             result = [c for c in result if self._matches_query(c, query_lower)]
 
         return result
+
+    def _matches_level(self, customization: Customization, level: ConfigLevel) -> bool:
+        """Check if customization matches the level filter.
+
+        Project-scoped plugins (PluginScope.PROJECT) match both PLUGIN and PROJECT levels.
+        """
+        if customization.level == level:
+            return True
+
+        # Project-scoped plugins also appear in Project filter
+        return (
+            level == ConfigLevel.PROJECT
+            and customization.plugin_info is not None
+            and customization.plugin_info.scope == PluginScope.PROJECT
+        )
 
     def _matches_query(self, customization: Customization, query: str) -> bool:
         """Check if customization matches the search query."""

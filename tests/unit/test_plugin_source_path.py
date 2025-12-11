@@ -28,15 +28,18 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
+            user_config / "plugins" / "installed_plugins_v2.json",
             contents=json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "plugins": {
-                        "handbook@my-marketplace": {
-                            "version": "1.0.0",
-                            "installPath": "/home/user/.claude/plugins/cache/my-marketplace/handbook/1.0.0",
-                        }
+                        "handbook@my-marketplace": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": "/home/user/.claude/plugins/cache/my-marketplace/handbook/1.0.0",
+                            }
+                        ]
                     },
                 }
             ),
@@ -84,15 +87,18 @@ class TestGetPluginSourcePath:
 
         install_path = "/home/user/.claude/plugins/cache/remote/plugin/1.0.0"
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
+            user_config / "plugins" / "installed_plugins_v2.json",
             contents=json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "plugins": {
-                        "plugin@remote-marketplace": {
-                            "version": "1.0.0",
-                            "installPath": install_path,
-                        }
+                        "plugin@remote-marketplace": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": install_path,
+                            }
+                        ]
                     },
                 }
             ),
@@ -122,15 +128,18 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
+            user_config / "plugins" / "installed_plugins_v2.json",
             contents=json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "plugins": {
-                        "test@local": {
-                            "version": "1.0.0",
-                            "installPath": "/cache/local/test/1.0.0",
-                        }
+                        "test@local": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": "/cache/local/test/1.0.0",
+                            }
+                        ]
                     },
                 }
             ),
@@ -162,15 +171,18 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
+            user_config / "plugins" / "installed_plugins_v2.json",
             contents=json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "plugins": {
-                        "missing@local": {
-                            "version": "1.0.0",
-                            "installPath": "/cache/local/missing/1.0.0",
-                        }
+                        "missing@local": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": "/cache/local/missing/1.0.0",
+                            }
+                        ]
                     },
                 }
             ),
@@ -205,15 +217,18 @@ class TestGetPluginSourcePath:
 
         install_path = "/home/user/.claude/plugins/standalone/1.0.0"
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
+            user_config / "plugins" / "installed_plugins_v2.json",
             contents=json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "plugins": {
-                        "standalone": {
-                            "version": "1.0.0",
-                            "installPath": install_path,
-                        }
+                        "standalone": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": install_path,
+                            }
+                        ]
                     },
                 }
             ),
@@ -235,8 +250,8 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
-            contents=json.dumps({"version": 1, "plugins": {}}),
+            user_config / "plugins" / "installed_plugins_v2.json",
+            contents=json.dumps({"version": 2, "plugins": {}}),
         )
 
         loader = PluginLoader(user_config)
@@ -257,15 +272,18 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins.json",
+            user_config / "plugins" / "installed_plugins_v2.json",
             contents=json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "plugins": {
-                        "test@local": {
-                            "version": "1.0.0",
-                            "installPath": "/cache/test",
-                        }
+                        "test@local": [
+                            {
+                                "scope": "user",
+                                "version": "1.0.0",
+                                "installPath": "/cache/test",
+                            }
+                        ]
                     },
                 }
             ),
