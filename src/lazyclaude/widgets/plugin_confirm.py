@@ -125,7 +125,7 @@ class PluginConfirm(Widget):
     def _update_prompt(self, summary: str) -> None:
         """Update the prompt text."""
         prompt_widget = self.query_one("#prompt", Static)
-        prompt_widget.update(f"{summary}\n\n\\[y] Yes  \\[n] No  Cancel")
+        prompt_widget.update(f"{summary}\n\n\\[y] Yes  \\[n] No \\[Esc] Cancel")
 
     def action_confirm(self) -> None:
         """Confirm the toggle."""
