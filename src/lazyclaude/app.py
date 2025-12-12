@@ -101,7 +101,7 @@ class LazyClaude(App):
         """Print simple traceback instead of Rich's fancy one."""
         self.bell()
         traceback.print_exc()
-        self._close_messages_no_wait()
+        self.exit()
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
