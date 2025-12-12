@@ -1,12 +1,16 @@
 """Service for writing and deleting customizations on disk."""
 
+import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
+    PluginInfo,
+    PluginScope,
 )
 
 
@@ -164,3 +168,81 @@ class CustomizationWriter:
     def _delete_skill_directory(self, skill_dir: Path) -> None:
         """Recursively delete skill directory."""
         shutil.rmtree(skill_dir)
+
+    def toggle_plugin_enabled(
+        self,
+        plugin_info: PluginInfo,
+        user_config_path: Path,
+        project_config_path: Path | None,
+    ) -> tuple[bool, str]:
+        """
+        Toggle plugin enabled state in the appropriate settings file.
+
+        Args:
+            plugin_info: Plugin to toggle
+            user_config_path: Path to ~/.claude
+            project_config_path: Path to ./.claude (may be None)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            settings_path = self._get_settings_path(
+                plugin_info.scope, user_config_path, project_config_path
+            )
+            if settings_path is None:
+                return (
+                    False,
+                    "No project config path available for project-scoped plugin",
+                )
+
+            settings = self._read_settings_json(settings_path)
+
+            enabled_plugins = settings.setdefault("enabledPlugins", {})
+            current_state = enabled_plugins.get(plugin_info.plugin_id, True)
+            new_state = not current_state
+            enabled_plugins[plugin_info.plugin_id] = new_state
+
+            self._write_settings_json(settings_path, settings)
+
+            state_label = "enabled" if new_state else "disabled"
+            return (True, f"Plugin '{plugin_info.short_name}' {state_label}")
+
+        except PermissionError as e:
+            return (False, f"Permission denied writing to {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to toggle plugin: {e}")
+
+    def _get_settings_path(
+        self,
+        scope: PluginScope,
+        user_config_path: Path,
+        project_config_path: Path | None,
+    ) -> Path | None:
+        """Get the settings file path for the given plugin scope."""
+        if scope == PluginScope.USER:
+            return user_config_path / "settings.json"
+        elif scope == PluginScope.PROJECT:
+            if project_config_path is None:
+                return None
+            return project_config_path / "settings.json"
+        elif scope == PluginScope.PROJECT_LOCAL:
+            if project_config_path is None:
+                return None
+            return project_config_path / "settings.local.json"
+        return None
+
+    def _read_settings_json(self, path: Path) -> dict[str, Any]:
+        """Read settings JSON, returning empty dict if file doesn't exist."""
+        if not path.is_file():
+            return {}
+        try:
+            result: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+            return result
+        except json.JSONDecodeError:
+            return {}
+
+    def _write_settings_json(self, path: Path, data: dict[str, Any]) -> None:
+        """Write settings JSON with proper formatting."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")

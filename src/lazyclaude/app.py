@@ -47,6 +47,7 @@ class LazyClaude(App):
         Binding("p", "filter_project", "Project"),
         Binding("P", "filter_plugin", "Plugin"),
         Binding("D", "toggle_plugin_enabled_filter", "Disabled"),
+        Binding("t", "toggle_plugin_enabled", "Toggle"),
         Binding("/", "search", "Search"),
         Binding("[", "prev_view", "[", show=True),
         Binding("]", "next_view", "]", show=True),
@@ -131,6 +132,11 @@ class LazyClaude(App):
         parameters: tuple[object, ...],  # noqa: ARG002
     ) -> bool | None:
         """Control action availability based on current state."""
+        if action == "toggle_plugin_enabled":
+            if not self._main_pane or not self._main_pane.customization:
+                return False
+            return self._main_pane.customization.plugin_info is not None
+
         if action in ("copy_customization", "move_customization"):
             if not self._main_pane or not self._main_pane.customization:
                 return False
@@ -525,6 +531,30 @@ class LazyClaude(App):
         self._update_panels()
         self._update_subtitle()
 
+    def action_toggle_plugin_enabled(self) -> None:
+        """Toggle enabled state for selected plugin customization."""
+        if not self._main_pane or not self._main_pane.customization:
+            return
+
+        customization = self._main_pane.customization
+
+        if not customization.plugin_info:
+            self._show_status_error("Not a plugin customization")
+            return
+
+        writer = CustomizationWriter()
+        success, msg = writer.toggle_plugin_enabled(
+            customization.plugin_info,
+            self._discovery_service.user_config_path,
+            self._discovery_service.project_config_path,
+        )
+
+        if success:
+            self.notify(msg, severity="information")
+            self.action_refresh()
+        else:
+            self.notify(msg, severity="error")
+
     def _update_status_filter(self, level: str) -> None:
         """Update status panel filter level and path display."""
         if self._status_panel:
@@ -676,6 +706,7 @@ class LazyClaude(App):
   e              Open in $EDITOR
   c              Copy to level
   m              Move to level
+  t              Toggle plugin enabled
   C              Copy path to clipboard
   r              Refresh from disk
   Ctrl+u         Open user config
