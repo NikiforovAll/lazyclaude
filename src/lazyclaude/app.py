@@ -22,6 +22,7 @@ from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
+from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
 
@@ -88,6 +89,7 @@ class LazyClaude(App):
         self._main_pane: MainPane | None = None
         self._filter_input: FilterInput | None = None
         self._level_selector: LevelSelector | None = None
+        self._plugin_confirm: PluginConfirm | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
         self._pending_customization: Customization | None = None
@@ -114,6 +116,9 @@ class LazyClaude(App):
 
         self._level_selector = LevelSelector(id="level-selector")
         yield self._level_selector
+
+        self._plugin_confirm = PluginConfirm(id="plugin-confirm")
+        yield self._plugin_confirm
 
         yield Footer()
 
@@ -542,18 +547,12 @@ class LazyClaude(App):
             self._show_status_error("Not a plugin customization")
             return
 
-        writer = CustomizationWriter()
-        success, msg = writer.toggle_plugin_enabled(
-            customization.plugin_info,
-            self._discovery_service.user_config_path,
-            self._discovery_service.project_config_path,
-        )
-
-        if success:
-            self.notify(msg, severity="information")
-            self.action_refresh()
-        else:
-            self.notify(msg, severity="error")
+        self._panel_before_selector = self._get_focused_panel()
+        if self._plugin_confirm:
+            self._plugin_confirm.show(
+                plugin_info=customization.plugin_info,
+                customizations=self._customizations,
+            )
 
     def _update_status_filter(self, level: str) -> None:
         """Update status panel filter level and path display."""
@@ -624,6 +623,32 @@ class LazyClaude(App):
     ) -> None:
         """Handle level selector cancellation."""
         self._pending_customization = None
+        self._restore_focus_after_selector()
+
+    def on_plugin_confirm_plugin_confirmed(
+        self, message: PluginConfirm.PluginConfirmed
+    ) -> None:
+        """Handle plugin toggle confirmation."""
+        writer = CustomizationWriter()
+        success, msg = writer.toggle_plugin_enabled(
+            message.plugin_info,
+            self._discovery_service.user_config_path,
+            self._discovery_service.project_config_path,
+        )
+
+        if success:
+            self.notify(msg, severity="information")
+            self.action_refresh()
+            self._restore_focus_after_selector()
+        else:
+            self.notify(msg, severity="error")
+            self._restore_focus_after_selector()
+
+    def on_plugin_confirm_confirmation_cancelled(
+        self,
+        message: PluginConfirm.ConfirmationCancelled,  # noqa: ARG002
+    ) -> None:
+        """Handle plugin confirmation cancellation."""
         self._restore_focus_after_selector()
 
     def _restore_focus_after_selector(self) -> None:
