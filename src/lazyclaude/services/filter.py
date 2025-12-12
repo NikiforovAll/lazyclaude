@@ -86,16 +86,18 @@ class FilterService(IFilterService):
     def _matches_level(self, customization: Customization, level: ConfigLevel) -> bool:
         """Check if customization matches the level filter.
 
-        Project-scoped plugins (PluginScope.PROJECT) match both PLUGIN and PROJECT levels.
+        Project-scoped plugins (PluginScope.PROJECT and PluginScope.PROJECT_LOCAL)
+        match both PLUGIN and PROJECT levels.
         """
         if customization.level == level:
             return True
 
-        # Project-scoped plugins also appear in Project filter
+        # Project-scoped and Project-Local-scoped plugins also appear in Project filter
         return (
             level == ConfigLevel.PROJECT
             and customization.plugin_info is not None
-            and customization.plugin_info.scope == PluginScope.PROJECT
+            and customization.plugin_info.scope
+            in (PluginScope.PROJECT, PluginScope.PROJECT_LOCAL)
         )
 
     def _matches_query(self, customization: Customization, query: str) -> bool:

@@ -1,19 +1,21 @@
 {
-  "version": 1,
+  "version": 2,
   "plugins": {
-    "example-plugin@test": {
-      "version": "1.0.0",
-      "installedAt": "2025-01-01T00:00:00.000Z",
-      "lastUpdated": "2025-01-01T00:00:00.000Z",
-      "installPath": "/fake/home/.claude/plugins/example-plugin",
-      "isLocal": false
-    },
-    "disabled-plugin@test": {
-      "version": "1.0.0",
-      "installedAt": "2025-01-01T00:00:00.000Z",
-      "lastUpdated": "2025-01-01T00:00:00.000Z",
-      "installPath": "/fake/home/.claude/plugins/disabled-plugin",
-      "isLocal": false
-    }
+    "example-plugin@test": [
+      {
+        "scope": "user",
+        "installPath": "/fake/home/.claude/plugins/cache/test/example-plugin/1.0.0",
+        "version": "1.0.0",
+        "isLocal": false
+      }
+    ],
+    "disabled-plugin@test": [
+      {
+        "scope": "user",
+        "installPath": "/fake/home/.claude/plugins/cache/test/disabled-plugin/1.0.0",
+        "version": "1.0.0",
+        "isLocal": false
+      }
+    ]
   }
 }

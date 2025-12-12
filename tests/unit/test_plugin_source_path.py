@@ -28,7 +28,7 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps(
                 {
                     "version": 2,
@@ -87,7 +87,7 @@ class TestGetPluginSourcePath:
 
         install_path = "/home/user/.claude/plugins/cache/remote/plugin/1.0.0"
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps(
                 {
                     "version": 2,
@@ -128,7 +128,7 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps(
                 {
                     "version": 2,
@@ -171,7 +171,7 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps(
                 {
                     "version": 2,
@@ -217,7 +217,7 @@ class TestGetPluginSourcePath:
 
         install_path = "/home/user/.claude/plugins/standalone/1.0.0"
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps(
                 {
                     "version": 2,
@@ -250,7 +250,7 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps({"version": 2, "plugins": {}}),
         )
 
@@ -272,7 +272,7 @@ class TestGetPluginSourcePath:
         )
 
         fs.create_file(
-            user_config / "plugins" / "installed_plugins_v2.json",
+            user_config / "plugins" / "installed_plugins.json",
             contents=json.dumps(
                 {
                     "version": 2,

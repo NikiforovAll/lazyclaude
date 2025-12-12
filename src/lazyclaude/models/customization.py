@@ -30,7 +30,8 @@ class PluginScope(Enum):
     """Scope where a plugin is installed."""
 
     USER = auto()  # Global user installation
-    PROJECT = auto()  # Project-specific installation
+    PROJECT = auto()  # Project-specific (settings.json)
+    PROJECT_LOCAL = auto()  # Project-local (settings.local.json)
 
 
 class CustomizationType(Enum):

@@ -135,13 +135,13 @@ def project_config_path(fake_project_root: Path, fs: FakeFilesystem) -> Path:
 
 @pytest.fixture
 def plugins_config(user_config_path: Path, fs: FakeFilesystem) -> Path:
-    """Create plugins configuration with installed_plugins_v2.json and plugin directories."""
+    """Create plugins configuration with installed_plugins.json and plugin directories."""
     plugins_dir = user_config_path / "plugins"
     fs.create_dir(plugins_dir)
 
     fs.add_real_file(
-        FIXTURES_DIR / "plugins" / "installed_plugins_v2.json",
-        target_path=plugins_dir / "installed_plugins_v2.json",
+        FIXTURES_DIR / "plugins" / "installed_plugins.json",
+        target_path=plugins_dir / "installed_plugins.json",
         read_only=False,
     )
 

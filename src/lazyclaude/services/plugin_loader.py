@@ -26,6 +26,7 @@ class PluginRegistry:
     installed: dict[str, list[PluginInstallation]]
     user_enabled: dict[str, bool]
     project_enabled: dict[str, bool]
+    local_enabled: dict[str, bool]
 
 
 class PluginLoader:
@@ -47,7 +48,7 @@ class PluginLoader:
         if self._registry is not None:
             return self._registry
 
-        v2_file = self.user_config_path / "plugins" / "installed_plugins_v2.json"
+        v2_file = self.user_config_path / "plugins" / "installed_plugins.json"
         installed = self._load_v2_plugins(v2_file) if v2_file.is_file() else {}
 
         user_enabled = self._load_json_dict(
@@ -56,9 +57,14 @@ class PluginLoader:
         )
 
         project_enabled: dict[str, bool] = {}
+        local_enabled: dict[str, bool] = {}
         if self.project_config_path:
             project_enabled = self._load_json_dict(
                 self.project_config_path / "settings.json",
+                "enabledPlugins",
+            )
+            local_enabled = self._load_json_dict(
+                self.project_config_path / "settings.local.json",
                 "enabledPlugins",
             )
 
@@ -66,6 +72,7 @@ class PluginLoader:
             installed=installed,
             user_enabled=user_enabled,
             project_enabled=project_enabled,
+            local_enabled=local_enabled,
         )
         return self._registry
 
@@ -101,10 +108,12 @@ class PluginLoader:
     def get_all_plugins(self) -> list[PluginInfo]:
         """Get list of ALL plugin infos (enabled and disabled) with resolved install paths.
 
-        Uses two-phase discovery:
+        Uses three-phase discovery:
         1. User plugins: All entries with scope="user"
         2. Project plugins: Entries from project's settings.json enabledPlugins
            that have scope="project" and matching projectPath
+        3. Local plugins: Entries from project's settings.local.json enabledPlugins
+           that have scope="local" and matching projectPath
         """
         registry = self.load_registry()
         plugins: list[PluginInfo] = []
@@ -114,7 +123,7 @@ class PluginLoader:
             for installation in installations:
                 if installation.scope == "user":
                     plugin_info = self._create_plugin_info(
-                        plugin_id, installation, is_project=False
+                        plugin_id, installation, scope_type="user"
                     )
                     if plugin_info and plugin_info.install_path.is_dir():
                         plugins.append(plugin_info)
@@ -127,7 +136,20 @@ class PluginLoader:
                     installation.project_path
                 ):
                     plugin_info = self._create_plugin_info(
-                        plugin_id, installation, is_project=True
+                        plugin_id, installation, scope_type="project"
+                    )
+                    if plugin_info and plugin_info.install_path.is_dir():
+                        plugins.append(plugin_info)
+
+        # Phase 3: Local-scoped plugins (driven by settings.local.json)
+        for plugin_id in registry.local_enabled:
+            installations = registry.installed.get(plugin_id, [])
+            for installation in installations:
+                if installation.scope == "local" and self._matches_current_project(
+                    installation.project_path
+                ):
+                    plugin_info = self._create_plugin_info(
+                        plugin_id, installation, scope_type="local"
                     )
                     if plugin_info and plugin_info.install_path.is_dir():
                         plugins.append(plugin_info)
@@ -155,7 +177,7 @@ class PluginLoader:
         2. Reading marketplace.json to find the plugin's relative source path
         3. Returning the resolved absolute path
 
-        For other plugins: returns the installPath from installed_plugins_v2.json
+        For other plugins: returns the installPath from installed_plugins.json
 
         Args:
             plugin_id: Plugin identifier (e.g., "handbook@cc-handbook")
@@ -253,9 +275,15 @@ class PluginLoader:
         self,
         plugin_id: str,
         installation: PluginInstallation,
-        is_project: bool,
+        scope_type: str,
     ) -> PluginInfo | None:
-        """Create PluginInfo from V2 installation data."""
+        """Create PluginInfo from V2 installation data.
+
+        Args:
+            plugin_id: Plugin identifier
+            installation: Installation data from registry
+            scope_type: One of "user", "project", or "local"
+        """
         if not installation.install_path:
             return None
 
@@ -270,12 +298,19 @@ class PluginLoader:
         # Determine enabled status based on scope
         is_enabled = True
         if self._registry:
-            if is_project:
+            if scope_type == "project":
                 is_enabled = self._registry.project_enabled.get(plugin_id, True)
+            elif scope_type == "local":
+                is_enabled = self._registry.local_enabled.get(plugin_id, True)
             else:
                 is_enabled = self._registry.user_enabled.get(plugin_id, True)
 
-        scope = PluginScope.PROJECT if is_project else PluginScope.USER
+        scope_map = {
+            "user": PluginScope.USER,
+            "project": PluginScope.PROJECT,
+            "local": PluginScope.PROJECT_LOCAL,
+        }
+        scope = scope_map[scope_type]
         project_path = (
             Path(installation.project_path) if installation.project_path else None
         )
