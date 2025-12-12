@@ -104,7 +104,7 @@ class LevelSelector(Widget):
 
         options_text = "  ".join(options)
         prompt_widget = self.query_one("#prompt", Static)
-        prompt_widget.update(f"{op_label} to: {options_text}  [Esc] Cancel")
+        prompt_widget.update(f"{op_label} to: {options_text}  \\[Esc] Cancel")
 
     def action_select_user(self) -> None:
         """Select user level."""
