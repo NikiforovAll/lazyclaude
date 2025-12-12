@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import traceback
 from pathlib import Path
 
 import pyperclip
@@ -95,6 +96,12 @@ class LazyClaude(App):
         self._pending_customization: Customization | None = None
         self._panel_before_selector: TypePanel | None = None
         self._config_path_resolver: ConfigPathResolver | None = None
+
+    def _fatal_error(self) -> None:
+        """Print simple traceback instead of Rich's fancy one."""
+        self.bell()
+        traceback.print_exc()
+        self._close_messages_no_wait()
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
