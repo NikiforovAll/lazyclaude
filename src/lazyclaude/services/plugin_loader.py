@@ -12,7 +12,7 @@ from lazyclaude.models.customization import PluginInfo, PluginScope
 class PluginInstallation:
     """Single installation of a plugin (user or project-scoped)."""
 
-    scope: str  # "user" or "project"
+    scope: str
     install_path: str
     version: str
     is_local: bool = False
