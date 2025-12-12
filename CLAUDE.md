@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project Overview
 
 LazyClaude is a TUI application for visualizing Claude Code customizations (Slash Commands, Subagents, Skills, Memory Files, MCPs, Hooks). Built with the Textual framework following lazygit-style keyboard ergonomics.
@@ -13,23 +15,28 @@ LazyClaude is a TUI application for visualizing Claude Code customizations (Slas
 
 ## Commands
 
+### Setup & Running
+
 ```bash
-uv sync                                # Install dependencies
-uv run lazyclaude                      # Run application
-uv run pytest                          # Run all tests
-uv run pytest tests/unit/test_X.py    # Run single test file
-uv run pytest -k "test_name"           # Run tests matching pattern
-uv run ruff check src tests            # Lint code
-uv run ruff format src tests           # Format code
-uv run mypy src                        # Type check
+uv sync                         # Install dependencies
+uv run lazyclaude              # Run application
+uv run pre-commit install      # Install git hooks for quality gates
 ```
+
+### Pre-commit Hooks
+
+```bash
+uv run pre-commit run --all-files      # Run all hooks manually
+```
+
+Git hooks run automatically before commit and enforce: ruff format, ruff lint, mypy checks, and pytest.
 
 ## Code Style
 
 - Type hints required for all public functions
 - Linting via ruff, formatting via ruff format
 - No emojis in code/comments
-- Comments explain WHY not WHAT
+- Comments explain WHY not WHAT (add comments only when logic isn't self-evident)
 
 ## Constitution Principles
 
@@ -89,31 +96,16 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
 
 **CustomizationTypes**: SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 
-<!-- BACKLOG.MD MCP GUIDELINES START -->
+**ConfigLevels**: USER, PROJECT, PROJECT_LOCAL, PLUGIN
+- USER: `~/.claude/` - User's global configuration
+- PROJECT: `./.claude/` - Project-specific files checked into version control
+- PROJECT_LOCAL: `./.claude/local/` - Project-local files (not version controlled, .gitignored)
+- PLUGIN: `~/.claude/plugins/` - Installed third-party plugin extensions
 
-<CRITICAL_INSTRUCTION>
+## Implementation Principles
 
-## BACKLOG WORKFLOW INSTRUCTIONS
-
-This project uses Backlog.md MCP for all task and project management activities.
-
-**CRITICAL GUIDANCE**
-
-- If your client supports MCP resources, read `backlog://workflow/overview` to understand when and how to use Backlog for this project.
-- If your client only supports tools or the above request fails, call `backlog.get_workflow_overview()` tool to load the tool-oriented overview (it lists the matching guide tools).
-
-- **First time working here?** Read the overview resource IMMEDIATELY to learn the workflow
-- **Already familiar?** You should have the overview cached ("## Backlog.md Overview (MCP)")
-- **When to read it**: BEFORE creating tasks, or when you're unsure whether to track work
-
-These guides cover:
-- Decision framework for when to create tasks
-- Search-first workflow to avoid duplicates
-- Links to detailed guides for task creation, execution, and completion
-- MCP tools reference
-
-You MUST read the overview resource to understand the complete workflow. The information is NOT summarized here.
-
-</CRITICAL_INSTRUCTION>
-
-<!-- BACKLOG.MD MCP GUIDELINES END -->
+**Simplicity over Generality**
+- Don't add features, refactoring, or improvements beyond what's requested
+- One-time operations don't need helpers or abstractions
+- Don't add docstrings or comments to code you didn't change
+- Trust internal code and framework guarantees; validate only at system boundaries (user input, external APIs)

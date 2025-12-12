@@ -10,8 +10,5 @@
     ],
     "deny": [],
     "ask": []
-  },
-  "enabledMcpjsonServers": [
-    "backlog"
-  ]
+  }
 }

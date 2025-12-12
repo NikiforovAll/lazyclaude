@@ -613,8 +613,8 @@ class LazyClaude(App):
         success, msg = writer.write_customization(
             customization,
             target_level,
-            self._user_config_path or Path.home() / ".claude",
-            self._project_config_path or Path.cwd() / ".claude",
+            self._discovery_service.user_config_path,
+            self._discovery_service.project_config_path,
         )
 
         if not success:

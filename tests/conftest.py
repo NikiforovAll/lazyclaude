@@ -145,9 +145,13 @@ def plugins_config(user_config_path: Path, fs: FakeFilesystem) -> Path:
         read_only=False,
     )
 
+    # V2 uses cache directory with versioned paths
+    cache_dir = plugins_dir / "cache" / "test"
+    fs.create_dir(cache_dir)
+
     fs.add_real_directory(
         FIXTURES_DIR / "plugins" / "example-plugin",
-        target_path=plugins_dir / "example-plugin",
+        target_path=cache_dir / "example-plugin" / "1.0.0",
         read_only=False,
     )
 

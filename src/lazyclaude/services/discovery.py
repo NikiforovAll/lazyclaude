@@ -116,7 +116,11 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         )
 
         self._scanner = FilesystemScanner()
-        self._plugin_loader = PluginLoader(self.user_config_path)
+        self._plugin_loader = PluginLoader(
+            self.user_config_path,
+            project_config_path=self.project_config_path,
+            project_root=self.project_root,
+        )
         self._cache: list[Customization] | None = None
 
     def discover_all(self) -> list[Customization]:
