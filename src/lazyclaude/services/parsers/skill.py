@@ -94,7 +94,7 @@ class SkillParser(ICustomizationParser):
 
         frontmatter, _ = parse_frontmatter(content)
 
-        name = frontmatter.get("name", skill_dir.name)
+        name = skill_dir.name
         description = frontmatter.get("description")
 
         tags_value = frontmatter.get("tags")

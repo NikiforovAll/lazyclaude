@@ -20,8 +20,10 @@ class TestSubagentDiscovery:
         subagents = service.discover_by_type(CustomizationType.SUBAGENT)
 
         user_subagents = [s for s in subagents if s.level == ConfigLevel.USER]
-        assert len(user_subagents) == 1
-        assert user_subagents[0].name == "explorer"
+        assert len(user_subagents) == 2
+        subagent_names = [s.name for s in user_subagents]
+        assert "explorer" in subagent_names
+        assert "empty-name" in subagent_names
 
     def test_subagent_metadata_parsed(
         self, user_config_path: Path, fake_project_root: Path
@@ -52,3 +54,20 @@ class TestSubagentDiscovery:
         assert len(project_subagents) == 1
         assert project_subagents[0].name == "reviewer"
         assert project_subagents[0].description == "Reviews code changes"
+
+    def test_subagent_empty_name_uses_file_name(
+        self, user_config_path: Path, fake_project_root: Path
+    ) -> None:
+        """Verify that empty name in frontmatter falls back to file name."""
+        service = ConfigDiscoveryService(
+            user_config_path=user_config_path,
+            project_config_path=fake_project_root / ".claude",
+        )
+
+        subagents = service.discover_by_type(CustomizationType.SUBAGENT)
+        empty_name_subagent = next(
+            (s for s in subagents if "empty-name" in s.name), None
+        )
+        assert empty_name_subagent is not None
+        assert empty_name_subagent.name == "empty-name"
+        assert empty_name_subagent.name != ""

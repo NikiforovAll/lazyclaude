@@ -50,7 +50,7 @@ class SubagentParser(ICustomizationParser):
 
         frontmatter, _ = parse_frontmatter(content)
 
-        name = frontmatter.get("name", path.stem)
+        name = path.stem
         description = frontmatter.get("description")
 
         skills_value = frontmatter.get("skills")
