@@ -20,10 +20,11 @@ class TestSkillDiscovery:
         skills = service.discover_by_type(CustomizationType.SKILL)
 
         user_skills = [s for s in skills if s.level == ConfigLevel.USER]
-        assert len(user_skills) == 2
+        assert len(user_skills) == 3
         skill_names = [s.name for s in user_skills]
         assert "task-tracker" in skill_names
         assert "full-skill" in skill_names
+        assert "empty-name-skill" in skill_names
 
     def test_skill_metadata_parsed(
         self, user_config_path: Path, fake_project_root: Path
@@ -154,3 +155,20 @@ class TestSkillFileDiscovery:
         tags = full_skill.metadata.get("tags", [])
         assert "testing" in tags
         assert "fixtures" in tags
+
+    def test_skill_empty_name_uses_directory_name(
+        self, user_config_path: Path, fake_project_root: Path
+    ) -> None:
+        """Verify that empty name in frontmatter falls back to directory name."""
+        service = ConfigDiscoveryService(
+            user_config_path=user_config_path,
+            project_config_path=fake_project_root / ".claude",
+        )
+
+        skills = service.discover_by_type(CustomizationType.SKILL)
+        empty_name_skill = next(
+            (s for s in skills if "empty-name-skill" in str(s.path)), None
+        )
+        assert empty_name_skill is not None
+        assert empty_name_skill.name == "empty-name-skill"
+        assert empty_name_skill.name != ""
