@@ -20,6 +20,7 @@ from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.writer import CustomizationWriter
+from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
@@ -86,6 +87,7 @@ class LazyClaude(App):
         self._search_query: str = ""
         self._plugin_enabled_filter: bool | None = True
         self._panels: list[TypePanel] = []
+        self._combined_panel: CombinedPanel | None = None
         self._status_panel: StatusPanel | None = None
         self._main_pane: MainPane | None = None
         self._filter_input: FilterInput | None = None
@@ -93,6 +95,7 @@ class LazyClaude(App):
         self._plugin_confirm: PluginConfirm | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
+        self._last_focused_combined: bool = False
         self._pending_customization: Customization | None = None
         self._panel_before_selector: TypePanel | None = None
         self._config_path_resolver: ConfigPathResolver | None = None
@@ -109,11 +112,19 @@ class LazyClaude(App):
             self._status_panel = StatusPanel(id="status-panel")
             yield self._status_panel
 
-            for i, ctype in enumerate(CustomizationType, start=1):
+            separate_types = [
+                CustomizationType.SLASH_COMMAND,
+                CustomizationType.SUBAGENT,
+                CustomizationType.SKILL,
+            ]
+            for i, ctype in enumerate(separate_types, start=1):
                 panel = TypePanel(ctype, id=f"panel-{ctype.name.lower()}")
                 panel.panel_number = i
                 self._panels.append(panel)
                 yield panel
+
+            self._combined_panel = CombinedPanel(id="panel-combined")
+            yield self._combined_panel
 
         self._main_pane = MainPane(id="main-pane")
         yield self._main_pane
@@ -187,6 +198,8 @@ class LazyClaude(App):
         filtered = self._get_filtered_customizations()
         for panel in self._panels:
             panel.set_customizations(filtered)
+        if self._combined_panel:
+            self._combined_panel.set_customizations(filtered)
 
     def _get_filtered_customizations(self) -> list[Customization]:
         """Get customizations filtered by current level and search query."""
@@ -242,6 +255,25 @@ class LazyClaude(App):
         """Handle drill down into a customization."""
         if self._main_pane:
             self._last_focused_panel = self._get_focused_panel()
+            self._last_focused_combined = False
+            self._update_display_path(message.customization)
+            self._main_pane.customization = message.customization
+            self._main_pane.focus()
+
+    def on_combined_panel_selection_changed(
+        self, message: CombinedPanel.SelectionChanged
+    ) -> None:
+        """Handle selection change in the combined panel."""
+        if self._main_pane:
+            self._update_display_path(message.customization)
+            self._main_pane.customization = message.customization
+        self.refresh_bindings()
+
+    def on_combined_panel_drill_down(self, message: CombinedPanel.DrillDown) -> None:
+        """Handle drill down from the combined panel."""
+        if self._main_pane:
+            self._last_focused_panel = None
+            self._last_focused_combined = True
             self._update_display_path(message.customization)
             self._main_pane.customization = message.customization
             self._main_pane.focus()
@@ -411,39 +443,53 @@ class LazyClaude(App):
     async def action_back(self) -> None:
         """Go back - return focus to panel from main pane, keep content visible."""
         if self._main_pane and self._main_pane.has_focus:
-            if self._last_focused_panel:
+            if self._last_focused_combined and self._combined_panel:
+                self._combined_panel.focus()
+            elif self._last_focused_panel:
                 self._last_focused_panel.focus()
             elif self._panels:
                 self._panels[0].focus()
 
     def action_focus_next_panel(self) -> None:
-        """Focus the next panel."""
+        """Focus the next panel (panels 1-3, then combined panel)."""
         current = self._get_focused_panel_index()
-        if current is not None and current < len(self._panels) - 1:
+        if current is None:
+            if self._panels:
+                self._panels[0].focus()
+        elif current < len(self._panels) - 1:
             self._panels[current + 1].focus()
+        elif current == len(self._panels) - 1 and self._combined_panel:
+            self._combined_panel.focus()
         elif self._panels:
             self._panels[0].focus()
 
     def action_focus_previous_panel(self) -> None:
-        """Focus the previous panel."""
+        """Focus the previous panel (combined panel, then panels 3-1)."""
         current = self._get_focused_panel_index()
-        if current is not None and current > 0:
-            self._panels[current - 1].focus()
-        elif self._panels:
+        if current is None or current == 0:
+            if self._combined_panel:
+                self._combined_panel.focus()
+            elif self._panels:
+                self._panels[-1].focus()
+        elif current == len(self._panels) and self._panels:
             self._panels[-1].focus()
+        elif current > 0:
+            self._panels[current - 1].focus()
 
     def _get_focused_panel(self) -> TypePanel | None:
-        """Get the currently focused panel."""
+        """Get the currently focused TypePanel (not combined panel)."""
         for panel in self._panels:
             if panel.has_focus:
                 return panel
         return None
 
     def _get_focused_panel_index(self) -> int | None:
-        """Get the index of the currently focused panel."""
+        """Get the index of the currently focused panel (combined panel = len(panels))."""
         for i, panel in enumerate(self._panels):
             if panel.has_focus:
                 return i
+        if self._combined_panel and self._combined_panel.has_focus:
+            return len(self._panels)
         return None
 
     def _focus_panel(self, index: int) -> None:
@@ -464,16 +510,22 @@ class LazyClaude(App):
         self._focus_panel(2)
 
     def action_focus_panel_4(self) -> None:
-        """Focus panel 4 (Memory Files)."""
-        self._focus_panel(3)
+        """Focus combined panel and switch to Memory Files."""
+        if self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.MEMORY_FILE)
+            self._combined_panel.focus()
 
     def action_focus_panel_5(self) -> None:
-        """Focus panel 5 (MCPs)."""
-        self._focus_panel(4)
+        """Focus combined panel and switch to MCPs."""
+        if self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.MCP)
+            self._combined_panel.focus()
 
     def action_focus_panel_6(self) -> None:
-        """Focus panel 6 (Hooks)."""
-        self._focus_panel(5)
+        """Focus combined panel and switch to Hooks."""
+        if self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.HOOK)
+            self._combined_panel.focus()
 
     def action_focus_main_pane(self) -> None:
         """Focus the main pane (panel 0)."""
@@ -481,13 +533,17 @@ class LazyClaude(App):
             self._main_pane.focus()
 
     def action_prev_view(self) -> None:
-        """Switch main pane to previous view."""
-        if self._main_pane:
+        """Switch view based on focused widget."""
+        if self._combined_panel and self._combined_panel.has_focus:
+            self._combined_panel.action_prev_tab()
+        elif self._main_pane:
             self._main_pane.action_prev_view()
 
     def action_next_view(self) -> None:
-        """Switch main pane to next view."""
-        if self._main_pane:
+        """Switch view based on focused widget."""
+        if self._combined_panel and self._combined_panel.has_focus:
+            self._combined_panel.action_next_tab()
+        elif self._main_pane:
             self._main_pane.action_next_view()
 
     def action_filter_all(self) -> None:
@@ -718,7 +774,9 @@ class LazyClaude(App):
   j/k or ↑/↓     Move up/down in list
   d/u            Page down/up (detail pane)
   g/G            Go to top/bottom
-  0-6            Focus panel by number
+  0              Focus main pane
+  1-3            Focus panel by number
+  4-6            Focus combined panel tab
   Tab            Switch between panels
   Enter          Drill down
   Esc            Go back
@@ -732,7 +790,8 @@ class LazyClaude(App):
   D              Toggle disabled plugins
 
 [bold]Views[/]
-  \[ / ]         Switch content/metadata view
+  \[ / ]         Main: content/metadata
+                 Combined: switch tabs
 
 [bold]Actions[/]
   e              Open in $EDITOR
