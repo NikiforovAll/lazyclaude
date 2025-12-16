@@ -66,6 +66,46 @@ TypePanel .item-selected {
     text-style: bold;
 }
 
+/* Combined Panel (Memory Files, MCPs, Hooks) */
+CombinedPanel {
+    height: 1fr;
+    min-height: 3;
+    border: solid $primary;
+    padding: 0 1;
+    margin-bottom: 1;
+    border-title-align: left;
+    border-subtitle-align: right;
+}
+
+CombinedPanel:focus {
+    border: double $accent;
+}
+
+CombinedPanel:focus-within {
+    border: double $accent;
+}
+
+CombinedPanel.empty {
+    height: 3;
+    min-height: 3;
+    max-height: 3;
+}
+
+CombinedPanel .items-container {
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+CombinedPanel .item {
+    height: 1;
+    width: 100%;
+}
+
+CombinedPanel .item-selected {
+    background: $accent;
+    text-style: bold;
+}
+
 /* Main Pane */
 MainPane:focus {
     border: double $accent;
