@@ -97,6 +97,158 @@ class TestCombinedPanelTabSwitching:
         panel.action_prev_tab()
         assert panel.active_type == CustomizationType.HOOK
 
+    def test_tab_switching_clamps_restored_index_to_valid_range(self) -> None:
+        """Restored index should be clamped if items were removed."""
+        from lazyclaude.models.customization import ConfigLevel, Customization
+
+        panel = CombinedPanel()
+
+        memory_files = [
+            Customization(
+                name=f"memory{i}",
+                type=CustomizationType.MEMORY_FILE,
+                path=f"/test/memory{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(10)
+        ]
+        mcps = [
+            Customization(
+                name=f"mcp{i}",
+                type=CustomizationType.MCP,
+                path=f"/test/mcp{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(3)
+        ]
+        panel.customizations = memory_files + mcps
+
+        panel.active_type = CustomizationType.MEMORY_FILE
+        panel.selected_index = 8
+
+        panel.switch_to_type(CustomizationType.MCP)
+
+        fewer_memory_files = [
+            Customization(
+                name=f"memory{i}",
+                type=CustomizationType.MEMORY_FILE,
+                path=f"/test/memory{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(3)
+        ]
+        panel.customizations = fewer_memory_files + mcps
+
+        panel.switch_to_type(CustomizationType.MEMORY_FILE)
+
+        assert panel.selected_index == 2
+
+    def test_tab_switching_handles_empty_type_after_items_removed(self) -> None:
+        """Switching to type with no items should set index to 0."""
+        from lazyclaude.models.customization import ConfigLevel, Customization
+
+        panel = CombinedPanel()
+
+        memory_files = [
+            Customization(
+                name=f"memory{i}",
+                type=CustomizationType.MEMORY_FILE,
+                path=f"/test/memory{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(5)
+        ]
+        mcps = [
+            Customization(
+                name=f"mcp{i}",
+                type=CustomizationType.MCP,
+                path=f"/test/mcp{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(3)
+        ]
+        panel.customizations = memory_files + mcps
+
+        panel.active_type = CustomizationType.MEMORY_FILE
+        panel.selected_index = 3
+
+        panel.switch_to_type(CustomizationType.MCP)
+
+        panel.customizations = mcps
+
+        panel.switch_to_type(CustomizationType.MEMORY_FILE)
+
+        assert panel.selected_index == 0
+
+    def test_tab_switching_preserves_per_type_selection_indices(self) -> None:
+        """Selection indices should be preserved when switching between tabs."""
+        from lazyclaude.models.customization import ConfigLevel, Customization
+
+        panel = CombinedPanel()
+
+        memory_files = [
+            Customization(
+                name=f"memory{i}",
+                type=CustomizationType.MEMORY_FILE,
+                path=f"/test/memory{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(5)
+        ]
+        mcps = [
+            Customization(
+                name=f"mcp{i}",
+                type=CustomizationType.MCP,
+                path=f"/test/mcp{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(4)
+        ]
+        hooks = [
+            Customization(
+                name=f"hook{i}",
+                type=CustomizationType.HOOK,
+                path=f"/test/hook{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(3)
+        ]
+        panel.customizations = memory_files + mcps + hooks
+
+        panel.active_type = CustomizationType.MEMORY_FILE
+        panel.selected_index = 2
+
+        panel.switch_to_type(CustomizationType.MCP)
+        panel.selected_index = 3
+
+        panel.switch_to_type(CustomizationType.HOOK)
+        panel.selected_index = 1
+
+        panel.switch_to_type(CustomizationType.MEMORY_FILE)
+        assert panel.selected_index == 2
+
+        panel.switch_to_type(CustomizationType.MCP)
+        assert panel.selected_index == 3
+
+        panel.switch_to_type(CustomizationType.HOOK)
+        assert panel.selected_index == 1
+
+        panel.action_next_tab()
+        assert panel.active_type == CustomizationType.MEMORY_FILE
+        assert panel.selected_index == 2
+
+        panel.action_prev_tab()
+        assert panel.active_type == CustomizationType.HOOK
+        assert panel.selected_index == 1
+
     def test_switch_to_type_changes_active_type(self) -> None:
         """switch_to_type should change the active type."""
         panel = CombinedPanel()

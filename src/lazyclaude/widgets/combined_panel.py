@@ -167,10 +167,18 @@ class CombinedPanel(Widget):
         error_marker = " [red]![/]" if item.has_error else ""
         return f"{prefix} {item.display_name}{error_marker}"
 
-    def watch_active_type(self, new_type: CustomizationType) -> None:
+    def watch_active_type(
+        self, old_type: CustomizationType, new_type: CustomizationType
+    ) -> None:
         """React to active type changes."""
-        self._selected_indices[self.active_type] = self.selected_index
-        self.selected_index = self._selected_indices.get(new_type, 0)
+        self._selected_indices[old_type] = self.selected_index
+        restored_index = self._selected_indices.get(new_type, 0)
+        filtered = [c for c in self.customizations if c.type == new_type]
+        if filtered and restored_index >= len(filtered):
+            restored_index = len(filtered) - 1
+        elif not filtered:
+            restored_index = 0
+        self.selected_index = restored_index
         if self.is_mounted:
             self.border_title = self._render_header()
             self.border_subtitle = self._render_footer()
