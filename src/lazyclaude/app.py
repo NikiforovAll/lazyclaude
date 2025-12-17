@@ -111,6 +111,7 @@ class LazyClaude(App):
         self._last_focused_combined: bool = False
         self._pending_customization: Customization | None = None
         self._panel_before_selector: TypePanel | None = None
+        self._combined_before_selector: bool = False
         self._config_path_resolver: ConfigPathResolver | None = None
 
     def _fatal_error(self) -> None:
@@ -410,6 +411,9 @@ class LazyClaude(App):
 
         self._pending_customization = customization
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._level_selector:
             self._level_selector.show(available, "copy")
 
@@ -437,6 +441,9 @@ class LazyClaude(App):
 
         self._pending_customization = customization
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._level_selector:
             self._level_selector.show(available, "move")
 
@@ -458,6 +465,9 @@ class LazyClaude(App):
             return
 
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._delete_confirm:
             self._delete_confirm.show(customization)
 
@@ -672,6 +682,9 @@ class LazyClaude(App):
             return
 
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._plugin_confirm:
             self._plugin_confirm.show(
                 plugin_info=customization.plugin_info,
@@ -799,9 +812,14 @@ class LazyClaude(App):
 
     def _restore_focus_after_selector(self) -> None:
         """Restore focus to the panel that was focused before the level selector."""
-        if self._panel_before_selector:
+        if self._combined_before_selector and self._combined_panel:
+            self._combined_panel.focus()
+            self._combined_before_selector = False
+            self._panel_before_selector = None
+        elif self._panel_before_selector:
             self._panel_before_selector.focus()
             self._panel_before_selector = None
+            self._combined_before_selector = False
         elif self._panels:
             self._panels[0].focus()
 
