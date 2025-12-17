@@ -69,6 +69,16 @@ class LazyClaude(App):
     TITLE = "LazyClaude"
     SUB_TITLE = "Claude Code Customization Viewer"
 
+    _COPYABLE_TYPES = (
+        CustomizationType.SLASH_COMMAND,
+        CustomizationType.SUBAGENT,
+        CustomizationType.SKILL,
+        CustomizationType.HOOK,
+        CustomizationType.MCP,
+        CustomizationType.MEMORY_FILE,
+    )
+    _PROJECT_LOCAL_TYPES = (CustomizationType.HOOK, CustomizationType.MCP)
+
     def __init__(
         self,
         discovery_service: ConfigDiscoveryService | None = None,
@@ -179,33 +189,13 @@ class LazyClaude(App):
 
             customization = self._main_pane.customization
 
-            if action == "delete_customization":
-                if customization.type not in [
-                    CustomizationType.SLASH_COMMAND,
-                    CustomizationType.SUBAGENT,
-                    CustomizationType.SKILL,
-                    CustomizationType.MCP,
-                    CustomizationType.MEMORY_FILE,
-                    CustomizationType.HOOK,
-                ]:
-                    return False
-                if customization.level == ConfigLevel.PLUGIN:
-                    return False
-            elif action in ("copy_customization", "move_customization"):
-                if customization.type not in [
-                    CustomizationType.SLASH_COMMAND,
-                    CustomizationType.SUBAGENT,
-                    CustomizationType.SKILL,
-                    CustomizationType.HOOK,
-                    CustomizationType.MCP,
-                    CustomizationType.MEMORY_FILE,
-                ]:
-                    return False
-                if (
-                    action == "move_customization"
-                    and customization.level == ConfigLevel.PLUGIN
-                ):
-                    return False
+            if customization.type not in self._COPYABLE_TYPES:
+                return False
+            if (
+                action in ("delete_customization", "move_customization")
+                and customization.level == ConfigLevel.PLUGIN
+            ):
+                return False
 
         return True
 
@@ -407,36 +397,13 @@ class LazyClaude(App):
 
         customization = self._main_pane.customization
 
-        if customization.type not in [
-            CustomizationType.SLASH_COMMAND,
-            CustomizationType.SUBAGENT,
-            CustomizationType.SKILL,
-            CustomizationType.HOOK,
-            CustomizationType.MCP,
-            CustomizationType.MEMORY_FILE,
-        ]:
+        if customization.type not in self._COPYABLE_TYPES:
             self._show_status_error(
                 f"Cannot copy {customization.type_label} customizations"
             )
             return
 
-        if customization.type in (CustomizationType.HOOK, CustomizationType.MCP):
-            available = [
-                level
-                for level in [
-                    ConfigLevel.USER,
-                    ConfigLevel.PROJECT,
-                    ConfigLevel.PROJECT_LOCAL,
-                ]
-                if level != customization.level
-            ]
-        else:
-            available = [
-                level
-                for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
-                if level != customization.level
-            ]
-
+        available = self._get_available_target_levels(customization)
         if not available:
             self._show_status_error("No available target levels")
             return
@@ -453,14 +420,7 @@ class LazyClaude(App):
 
         customization = self._main_pane.customization
 
-        if customization.type not in [
-            CustomizationType.SLASH_COMMAND,
-            CustomizationType.SUBAGENT,
-            CustomizationType.SKILL,
-            CustomizationType.HOOK,
-            CustomizationType.MCP,
-            CustomizationType.MEMORY_FILE,
-        ]:
+        if customization.type not in self._COPYABLE_TYPES:
             self._show_status_error(
                 f"Cannot move {customization.type_label} customizations"
             )
@@ -470,23 +430,7 @@ class LazyClaude(App):
             self._show_status_error("Cannot move from plugin-level customizations")
             return
 
-        if customization.type in (CustomizationType.HOOK, CustomizationType.MCP):
-            available = [
-                level
-                for level in [
-                    ConfigLevel.USER,
-                    ConfigLevel.PROJECT,
-                    ConfigLevel.PROJECT_LOCAL,
-                ]
-                if level != customization.level
-            ]
-        else:
-            available = [
-                level
-                for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
-                if level != customization.level
-            ]
-
+        available = self._get_available_target_levels(customization)
         if not available:
             self._show_status_error("No available target levels")
             return
@@ -503,14 +447,7 @@ class LazyClaude(App):
 
         customization = self._main_pane.customization
 
-        if customization.type not in [
-            CustomizationType.SLASH_COMMAND,
-            CustomizationType.SUBAGENT,
-            CustomizationType.SKILL,
-            CustomizationType.HOOK,
-            CustomizationType.MCP,
-            CustomizationType.MEMORY_FILE,
-        ]:
+        if customization.type not in self._COPYABLE_TYPES:
             self._show_status_error(
                 f"Cannot delete {customization.type_label} customizations"
             )
@@ -579,6 +516,33 @@ class LazyClaude(App):
             _, file_path = panel._flat_items[panel.selected_index]
             return file_path is not None
         return False
+
+    def _get_available_target_levels(
+        self, customization: Customization
+    ) -> list[ConfigLevel]:
+        """Get available target levels for copy/move based on customization type."""
+        if customization.type in self._PROJECT_LOCAL_TYPES:
+            all_levels = [
+                ConfigLevel.USER,
+                ConfigLevel.PROJECT,
+                ConfigLevel.PROJECT_LOCAL,
+            ]
+        else:
+            all_levels = [ConfigLevel.USER, ConfigLevel.PROJECT]
+        return [level for level in all_levels if level != customization.level]
+
+    def _delete_customization(
+        self, customization: Customization, writer: CustomizationWriter
+    ) -> tuple[bool, str]:
+        """Delete customization using type-specific method."""
+        if customization.type == CustomizationType.MCP:
+            return writer.delete_mcp_customization(
+                customization, self._discovery_service.project_config_path
+            )
+        elif customization.type == CustomizationType.HOOK:
+            return writer.delete_hook_customization(customization)
+        else:
+            return writer.delete_customization(customization)
 
     def _get_focused_panel_index(self) -> int | None:
         """Get the index of the currently focused panel (combined panel = len(panels))."""
@@ -817,16 +781,7 @@ class LazyClaude(App):
         """Handle delete confirmation."""
         customization = message.customization
         writer = CustomizationWriter()
-
-        if customization.type == CustomizationType.MCP:
-            success, msg = writer.delete_mcp_customization(
-                customization,
-                self._discovery_service.project_config_path,
-            )
-        elif customization.type == CustomizationType.HOOK:
-            success, msg = writer.delete_hook_customization(customization)
-        else:
-            success, msg = writer.delete_customization(customization)
+        success, msg = self._delete_customization(customization, writer)
 
         if success:
             self.notify(msg, severity="information")
@@ -886,17 +841,9 @@ class LazyClaude(App):
             return
 
         if operation == "move":
-            if customization.type == CustomizationType.MCP:
-                delete_success, delete_msg = writer.delete_mcp_customization(
-                    customization,
-                    self._discovery_service.project_config_path,
-                )
-            elif customization.type == CustomizationType.HOOK:
-                delete_success, delete_msg = writer.delete_hook_customization(
-                    customization
-                )
-            else:
-                delete_success, delete_msg = writer.delete_customization(customization)
+            delete_success, delete_msg = self._delete_customization(
+                customization, writer
+            )
             if not delete_success:
                 self._show_status_error(
                     f"Copied but failed to delete source: {delete_msg}"
