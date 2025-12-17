@@ -15,6 +15,7 @@ class LevelSelector(Widget):
     BINDINGS = [
         Binding("1", "select_user", "User", show=False),
         Binding("2", "select_project", "Project", show=False),
+        Binding("3", "select_project_local", "Project-Local", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
     ]
 
@@ -101,6 +102,8 @@ class LevelSelector(Widget):
             options.append("[1] User")
         if ConfigLevel.PROJECT in self._available_levels:
             options.append("[2] Project")
+        if ConfigLevel.PROJECT_LOCAL in self._available_levels:
+            options.append("[3] Local")
 
         options_text = "  ".join(options)
         prompt_widget = self.query_one("#prompt", Static)
@@ -117,6 +120,14 @@ class LevelSelector(Widget):
         if ConfigLevel.PROJECT in self._available_levels:
             self.hide()
             self.post_message(self.LevelSelected(ConfigLevel.PROJECT, self._operation))
+
+    def action_select_project_local(self) -> None:
+        """Select project-local level."""
+        if ConfigLevel.PROJECT_LOCAL in self._available_levels:
+            self.hide()
+            self.post_message(
+                self.LevelSelected(ConfigLevel.PROJECT_LOCAL, self._operation)
+            )
 
     def action_cancel(self) -> None:
         """Cancel selection."""

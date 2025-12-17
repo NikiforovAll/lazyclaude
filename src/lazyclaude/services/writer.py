@@ -91,6 +91,273 @@ class CustomizationWriter:
         except OSError as e:
             return (False, f"Failed to delete '{customization.name}': {e}")
 
+    def write_hook_customization(
+        self,
+        customization: Customization,
+        target_level: ConfigLevel,
+        user_config_path: Path,
+        project_config_path: Path,
+    ) -> tuple[bool, str]:
+        """
+        Copy hooks to target level, merging with existing hooks.
+
+        Args:
+            customization: The hook customization to copy
+            target_level: Target configuration level (USER, PROJECT, or PROJECT_LOCAL)
+            user_config_path: Path to user config directory (~/.claude)
+            project_config_path: Path to project config directory (./.claude)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            target_path = self._get_hook_settings_path(
+                target_level, user_config_path, project_config_path
+            )
+            if target_path is None:
+                return (False, "No project config path available")
+
+            source_hooks = self._parse_hook_content(customization.content)
+            if not source_hooks:
+                return (False, "No hooks to copy")
+
+            settings = self._read_settings_json(target_path)
+            existing_hooks: dict[str, list[Any]] = settings.get("hooks", {})
+
+            merged_hooks = self._merge_hooks(existing_hooks, source_hooks)
+            settings["hooks"] = merged_hooks
+
+            self._write_settings_json(target_path, settings)
+
+            return (
+                True,
+                f"Copied hooks to {target_level.label} level",
+            )
+
+        except PermissionError as e:
+            return (False, f"Permission denied writing to {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to copy hooks: {e}")
+
+    def delete_hook_customization(
+        self,
+        customization: Customization,
+    ) -> tuple[bool, str]:
+        """
+        Delete hooks from a settings file (for move operation).
+
+        Removes only the "hooks" key, preserving other settings like enabledPlugins.
+
+        Args:
+            customization: The hook customization to delete
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            settings_path = customization.path
+
+            settings = self._read_settings_json(settings_path)
+            if "hooks" not in settings:
+                return (False, "No hooks found to delete")
+
+            del settings["hooks"]
+
+            if settings:
+                self._write_settings_json(settings_path, settings)
+            else:
+                settings_path.unlink()
+
+            return (True, "Deleted hooks")
+
+        except PermissionError as e:
+            return (False, f"Permission denied deleting {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to delete hooks: {e}")
+
+    def write_mcp_customization(
+        self,
+        customization: Customization,
+        target_level: ConfigLevel,
+        project_config_path: Path,
+    ) -> tuple[bool, str]:
+        """
+        Copy MCP server to target level.
+
+        Args:
+            customization: The MCP customization to copy
+            target_level: Target configuration level (USER, PROJECT, or PROJECT_LOCAL)
+            project_config_path: Path to project config directory (./.claude)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            target_path = self._get_mcp_file_path(target_level, project_config_path)
+
+            mcp_config = self._parse_mcp_content(customization.content)
+            if not mcp_config:
+                return (False, "Invalid MCP configuration")
+
+            data = self._read_settings_json(target_path)
+
+            if target_level == ConfigLevel.PROJECT_LOCAL:
+                project_path = str(project_config_path.parent).replace("\\", "/")
+                projects: dict[str, Any] = data.setdefault("projects", {})
+                project_data: dict[str, Any] = projects.setdefault(project_path, {})
+                mcp_servers: dict[str, Any] = project_data.setdefault("mcpServers", {})
+            else:
+                mcp_servers = data.setdefault("mcpServers", {})
+
+            if customization.name in mcp_servers:
+                return (
+                    False,
+                    f"MCP '{customization.name}' already exists at {target_level.label} level",
+                )
+
+            mcp_servers[customization.name] = mcp_config
+            self._write_settings_json(target_path, data)
+
+            return (
+                True,
+                f"Copied MCP '{customization.name}' to {target_level.label} level",
+            )
+
+        except PermissionError as e:
+            return (False, f"Permission denied writing to {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to copy MCP: {e}")
+
+    def delete_mcp_customization(
+        self,
+        customization: Customization,
+        project_config_path: Path,
+    ) -> tuple[bool, str]:
+        """
+        Delete MCP server from its source file (for move operation).
+
+        Removes only the specific MCP server, preserving other servers and settings.
+
+        Args:
+            customization: The MCP customization to delete
+            project_config_path: Path to project config directory (./.claude)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            source_path = customization.path
+            source_level = customization.level
+
+            data = self._read_settings_json(source_path)
+
+            if source_level == ConfigLevel.PROJECT_LOCAL:
+                project_path = str(project_config_path.parent).replace("\\", "/")
+                projects = data.get("projects", {})
+                project_data = projects.get(project_path) or projects.get(
+                    project_path.replace("/", "\\"), {}
+                )
+                mcp_servers = project_data.get("mcpServers", {})
+
+                if customization.name not in mcp_servers:
+                    return (False, f"MCP '{customization.name}' not found")
+
+                del mcp_servers[customization.name]
+                if not mcp_servers and "mcpServers" in project_data:
+                    del project_data["mcpServers"]
+            else:
+                mcp_servers = data.get("mcpServers", {})
+
+                if customization.name not in mcp_servers:
+                    return (False, f"MCP '{customization.name}' not found")
+
+                del mcp_servers[customization.name]
+                if not mcp_servers and "mcpServers" in data:
+                    del data["mcpServers"]
+
+            if source_level == ConfigLevel.PROJECT and not data:
+                source_path.unlink()
+            else:
+                self._write_settings_json(source_path, data)
+
+            return (True, f"Deleted MCP '{customization.name}'")
+
+        except PermissionError as e:
+            return (False, f"Permission denied deleting {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to delete MCP: {e}")
+
+    def _get_mcp_file_path(
+        self,
+        level: ConfigLevel,
+        project_config_path: Path,
+    ) -> Path:
+        """Get MCP config file path for target level."""
+        if level == ConfigLevel.USER:
+            return Path.home() / ".claude.json"
+        elif level == ConfigLevel.PROJECT:
+            return project_config_path.parent / ".mcp.json"
+        elif level == ConfigLevel.PROJECT_LOCAL:
+            return Path.home() / ".claude.json"
+        raise ValueError(f"Unsupported level for MCP: {level}")
+
+    def _parse_mcp_content(self, content: str | None) -> dict[str, Any]:
+        """Parse MCP content JSON string to dict."""
+        if not content:
+            return {}
+        try:
+            result: dict[str, Any] = json.loads(content)
+            return result
+        except json.JSONDecodeError:
+            return {}
+
+    def _get_hook_settings_path(
+        self,
+        level: ConfigLevel,
+        user_config_path: Path,
+        project_config_path: Path | None,
+    ) -> Path | None:
+        """Get the settings file path for hooks at the given level."""
+        if level == ConfigLevel.USER:
+            return user_config_path / "settings.json"
+        elif level == ConfigLevel.PROJECT:
+            if project_config_path is None:
+                return None
+            return project_config_path / "settings.json"
+        elif level == ConfigLevel.PROJECT_LOCAL:
+            if project_config_path is None:
+                return None
+            return project_config_path / "settings.local.json"
+        return None
+
+    def _parse_hook_content(self, content: str | None) -> dict[str, list[Any]]:
+        """Parse hook content JSON string to dict."""
+        if not content:
+            return {}
+        try:
+            result: dict[str, list[Any]] = json.loads(content)
+            return result
+        except json.JSONDecodeError:
+            return {}
+
+    def _merge_hooks(
+        self,
+        existing: dict[str, list[Any]],
+        source: dict[str, list[Any]],
+    ) -> dict[str, list[Any]]:
+        """
+        Merge source hooks into existing hooks.
+
+        For each event type, appends source matchers to existing matchers.
+        """
+        merged = dict(existing)
+        for event_name, source_matchers in source.items():
+            if event_name in merged:
+                merged[event_name] = merged[event_name] + source_matchers
+            else:
+                merged[event_name] = source_matchers
+        return merged
+
     def _get_target_base_path(
         self,
         level: ConfigLevel,
@@ -127,6 +394,9 @@ class CustomizationWriter:
 
         elif customization.type == CustomizationType.SKILL:
             return base_path / "skills" / customization.name
+
+        elif customization.type == CustomizationType.MEMORY_FILE:
+            return base_path / customization.path.name
 
         else:
             raise ValueError(f"Unsupported customization type: {customization.type}")

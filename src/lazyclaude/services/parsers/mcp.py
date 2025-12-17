@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 from lazyclaude.models.customization import (
     ConfigLevel,
@@ -53,40 +54,50 @@ class MCPParser(ICustomizationParser):
 
         customizations = []
         for server_name, server_config in mcp_servers.items():
-            transport_type = server_config.get("type", "stdio")
-            command = server_config.get("command")
-            url = server_config.get("url")
-            args = server_config.get("args", [])
-            env = server_config.get("env", {})
-
-            if transport_type in ("http", "sse") and url:
-                description = f"{transport_type.upper()} server: {url}"
-            elif command:
-                description = f"{transport_type.upper()} command: {command}"
-            else:
-                description = f"{transport_type.upper()} server"
-
-            metadata = MCPServerMetadata(
-                transport_type=transport_type,
-                command=command,
-                url=url,
-                args=args if isinstance(args, list) else [],
-                env=env if isinstance(env, dict) else {},
-            )
-
             customizations.append(
-                Customization(
-                    name=server_name,
-                    type=CustomizationType.MCP,
-                    level=level,
-                    path=path,
-                    description=description,
-                    content=json.dumps(server_config, indent=2),
-                    metadata=metadata.__dict__,
-                )
+                self.parse_server_config(server_name, server_config, path, level)
             )
 
         return customizations
+
+    def parse_server_config(
+        self,
+        server_name: str,
+        server_config: dict[str, Any],
+        source_path: Path,
+        level: ConfigLevel,
+    ) -> Customization:
+        """Parse a single MCP server configuration."""
+        transport_type = server_config.get("type", "stdio")
+        command = server_config.get("command")
+        url = server_config.get("url")
+        args = server_config.get("args", [])
+        env = server_config.get("env", {})
+
+        if transport_type in ("http", "sse") and url:
+            description = f"{transport_type.upper()} server: {url}"
+        elif command:
+            description = f"{transport_type.upper()} command: {command}"
+        else:
+            description = f"{transport_type.upper()} server"
+
+        metadata = MCPServerMetadata(
+            transport_type=transport_type,
+            command=command,
+            url=url,
+            args=args if isinstance(args, list) else [],
+            env=env if isinstance(env, dict) else {},
+        )
+
+        return Customization(
+            name=server_name,
+            type=CustomizationType.MCP,
+            level=level,
+            path=source_path,
+            description=description,
+            content=json.dumps(server_config, indent=2),
+            metadata=metadata.__dict__,
+        )
 
     def parse_single(self, path: Path, level: ConfigLevel) -> Customization:
         """

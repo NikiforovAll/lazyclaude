@@ -21,6 +21,7 @@ from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.combined_panel import CombinedPanel
+from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
@@ -41,6 +42,7 @@ class LazyClaude(App):
         Binding("e", "open_in_editor", "Edit"),
         Binding("c", "copy_customization", "Copy"),
         Binding("m", "move_customization", "Move"),
+        Binding("d", "delete_customization", "Delete"),
         Binding("C", "copy_config_path", "Copy Path"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
@@ -66,6 +68,16 @@ class LazyClaude(App):
 
     TITLE = "LazyClaude"
     SUB_TITLE = "Claude Code Customization Viewer"
+
+    _COPYABLE_TYPES = (
+        CustomizationType.SLASH_COMMAND,
+        CustomizationType.SUBAGENT,
+        CustomizationType.SKILL,
+        CustomizationType.HOOK,
+        CustomizationType.MCP,
+        CustomizationType.MEMORY_FILE,
+    )
+    _PROJECT_LOCAL_TYPES = (CustomizationType.HOOK, CustomizationType.MCP)
 
     def __init__(
         self,
@@ -93,11 +105,13 @@ class LazyClaude(App):
         self._filter_input: FilterInput | None = None
         self._level_selector: LevelSelector | None = None
         self._plugin_confirm: PluginConfirm | None = None
+        self._delete_confirm: DeleteConfirm | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
         self._last_focused_combined: bool = False
         self._pending_customization: Customization | None = None
         self._panel_before_selector: TypePanel | None = None
+        self._combined_before_selector: bool = False
         self._config_path_resolver: ConfigPathResolver | None = None
 
     def _fatal_error(self) -> None:
@@ -138,6 +152,9 @@ class LazyClaude(App):
         self._plugin_confirm = PluginConfirm(id="plugin-confirm")
         yield self._plugin_confirm
 
+        self._delete_confirm = DeleteConfirm(id="delete-confirm")
+        yield self._delete_confirm
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -160,21 +177,23 @@ class LazyClaude(App):
                 return False
             return self._main_pane.customization.plugin_info is not None
 
-        if action in ("copy_customization", "move_customization"):
+        if action in (
+            "copy_customization",
+            "move_customization",
+            "delete_customization",
+        ):
             if not self._main_pane or not self._main_pane.customization:
+                return False
+
+            if self._is_skill_subfile_selected():
                 return False
 
             customization = self._main_pane.customization
 
-            if customization.type not in [
-                CustomizationType.SLASH_COMMAND,
-                CustomizationType.SUBAGENT,
-                CustomizationType.SKILL,
-            ]:
+            if customization.type not in self._COPYABLE_TYPES:
                 return False
-
             if (
-                action == "move_customization"
+                action in ("delete_customization", "move_customization")
                 and customization.level == ConfigLevel.PLUGIN
             ):
                 return False
@@ -379,28 +398,22 @@ class LazyClaude(App):
 
         customization = self._main_pane.customization
 
-        if customization.type not in [
-            CustomizationType.SLASH_COMMAND,
-            CustomizationType.SUBAGENT,
-            CustomizationType.SKILL,
-        ]:
+        if customization.type not in self._COPYABLE_TYPES:
             self._show_status_error(
                 f"Cannot copy {customization.type_label} customizations"
             )
             return
 
-        available = [
-            level
-            for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
-            if level != customization.level
-        ]
-
+        available = self._get_available_target_levels(customization)
         if not available:
             self._show_status_error("No available target levels")
             return
 
         self._pending_customization = customization
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._level_selector:
             self._level_selector.show(available, "copy")
 
@@ -411,11 +424,7 @@ class LazyClaude(App):
 
         customization = self._main_pane.customization
 
-        if customization.type not in [
-            CustomizationType.SLASH_COMMAND,
-            CustomizationType.SUBAGENT,
-            CustomizationType.SKILL,
-        ]:
+        if customization.type not in self._COPYABLE_TYPES:
             self._show_status_error(
                 f"Cannot move {customization.type_label} customizations"
             )
@@ -425,20 +434,42 @@ class LazyClaude(App):
             self._show_status_error("Cannot move from plugin-level customizations")
             return
 
-        available = [
-            level
-            for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
-            if level != customization.level
-        ]
-
+        available = self._get_available_target_levels(customization)
         if not available:
             self._show_status_error("No available target levels")
             return
 
         self._pending_customization = customization
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._level_selector:
             self._level_selector.show(available, "move")
+
+    def action_delete_customization(self) -> None:
+        """Delete selected customization."""
+        if not self._main_pane or not self._main_pane.customization:
+            return
+
+        customization = self._main_pane.customization
+
+        if customization.type not in self._COPYABLE_TYPES:
+            self._show_status_error(
+                f"Cannot delete {customization.type_label} customizations"
+            )
+            return
+
+        if customization.level == ConfigLevel.PLUGIN:
+            self._show_status_error("Cannot delete plugin-level customizations")
+            return
+
+        self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
+        if self._delete_confirm:
+            self._delete_confirm.show(customization)
 
     async def action_back(self) -> None:
         """Go back - return focus to panel from main pane, keep content visible."""
@@ -482,6 +513,46 @@ class LazyClaude(App):
             if panel.has_focus:
                 return panel
         return None
+
+    def _is_skill_subfile_selected(self) -> bool:
+        """Check if a skill subfile is currently selected (not root skill)."""
+        panel = self._get_focused_panel()
+        if (
+            panel
+            and panel._is_skills_panel
+            and panel._flat_items
+            and 0 <= panel.selected_index < len(panel._flat_items)
+        ):
+            _, file_path = panel._flat_items[panel.selected_index]
+            return file_path is not None
+        return False
+
+    def _get_available_target_levels(
+        self, customization: Customization
+    ) -> list[ConfigLevel]:
+        """Get available target levels for copy/move based on customization type."""
+        if customization.type in self._PROJECT_LOCAL_TYPES:
+            all_levels = [
+                ConfigLevel.USER,
+                ConfigLevel.PROJECT,
+                ConfigLevel.PROJECT_LOCAL,
+            ]
+        else:
+            all_levels = [ConfigLevel.USER, ConfigLevel.PROJECT]
+        return [level for level in all_levels if level != customization.level]
+
+    def _delete_customization(
+        self, customization: Customization, writer: CustomizationWriter
+    ) -> tuple[bool, str]:
+        """Delete customization using type-specific method."""
+        if customization.type == CustomizationType.MCP:
+            return writer.delete_mcp_customization(
+                customization, self._discovery_service.project_config_path
+            )
+        elif customization.type == CustomizationType.HOOK:
+            return writer.delete_hook_customization(customization)
+        else:
+            return writer.delete_customization(customization)
 
     def _get_focused_panel_index(self) -> int | None:
         """Get the index of the currently focused panel (combined panel = len(panels))."""
@@ -611,6 +682,9 @@ class LazyClaude(App):
             return
 
         self._panel_before_selector = self._get_focused_panel()
+        self._combined_before_selector = (
+            self._combined_panel.has_focus if self._combined_panel else False
+        )
         if self._plugin_confirm:
             self._plugin_confirm.show(
                 plugin_info=customization.plugin_info,
@@ -714,11 +788,38 @@ class LazyClaude(App):
         """Handle plugin confirmation cancellation."""
         self._restore_focus_after_selector()
 
+    def on_delete_confirm_delete_confirmed(
+        self, message: DeleteConfirm.DeleteConfirmed
+    ) -> None:
+        """Handle delete confirmation."""
+        customization = message.customization
+        writer = CustomizationWriter()
+        success, msg = self._delete_customization(customization, writer)
+
+        if success:
+            self.notify(msg, severity="information")
+            self.action_refresh()
+        else:
+            self.notify(msg, severity="error")
+        self._restore_focus_after_selector()
+
+    def on_delete_confirm_delete_cancelled(
+        self,
+        message: DeleteConfirm.DeleteCancelled,  # noqa: ARG002
+    ) -> None:
+        """Handle delete cancellation."""
+        self._restore_focus_after_selector()
+
     def _restore_focus_after_selector(self) -> None:
         """Restore focus to the panel that was focused before the level selector."""
-        if self._panel_before_selector:
+        if self._combined_before_selector and self._combined_panel:
+            self._combined_panel.focus()
+            self._combined_before_selector = False
+            self._panel_before_selector = None
+        elif self._panel_before_selector:
             self._panel_before_selector.focus()
             self._panel_before_selector = None
+            self._combined_before_selector = False
         elif self._panels:
             self._panels[0].focus()
 
@@ -726,21 +827,41 @@ class LazyClaude(App):
         self, customization: Customization, target_level: ConfigLevel, operation: str
     ) -> None:
         """Handle copy or move operation."""
+        if operation == "move" and customization.level == ConfigLevel.PLUGIN:
+            self._show_status_error("Cannot move from plugin (read-only source)")
+            return
+
         writer = CustomizationWriter()
 
-        success, msg = writer.write_customization(
-            customization,
-            target_level,
-            self._discovery_service.user_config_path,
-            self._discovery_service.project_config_path,
-        )
+        if customization.type == CustomizationType.MCP:
+            success, msg = writer.write_mcp_customization(
+                customization,
+                target_level,
+                self._discovery_service.project_config_path,
+            )
+        elif customization.type == CustomizationType.HOOK:
+            success, msg = writer.write_hook_customization(
+                customization,
+                target_level,
+                self._discovery_service.user_config_path,
+                self._discovery_service.project_config_path,
+            )
+        else:
+            success, msg = writer.write_customization(
+                customization,
+                target_level,
+                self._discovery_service.user_config_path,
+                self._discovery_service.project_config_path,
+            )
 
         if not success:
             self._show_status_error(msg)
             return
 
         if operation == "move":
-            delete_success, delete_msg = writer.delete_customization(customization)
+            delete_success, delete_msg = self._delete_customization(
+                customization, writer
+            )
             if not delete_success:
                 self._show_status_error(
                     f"Copied but failed to delete source: {delete_msg}"

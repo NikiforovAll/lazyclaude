@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "/fake/project": {
+      "mcpServers": {
+        "local-server": {
+          "type": "http",
+          "url": "https://api.example.com/mcp"
+        }
+      }
+    }
+  }
+}

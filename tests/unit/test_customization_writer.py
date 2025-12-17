@@ -280,3 +280,242 @@ class TestCustomizationWriter:
 
         assert success is False
         assert "Permission denied" in msg or "Failed to copy" in msg
+
+
+class TestHookCustomizationWriter:
+    """Tests for hook-specific CustomizationWriter methods."""
+
+    def test_write_hooks_to_user_level_creates_new_file(
+        self, fs, fake_home: Path, fake_project_root: Path
+    ) -> None:
+        """Writing hooks to user level creates settings.json if not exists."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+        project_config = fake_project_root / ".claude"
+        fs.create_dir(project_config)
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.PROJECT,
+            path=project_config / "settings.json",
+            content='{"PreToolUse": [{"matcher": "Bash", "hooks": []}]}',
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.write_hook_customization(
+            customization,
+            ConfigLevel.USER,
+            user_config,
+            project_config,
+        )
+
+        assert success is True
+        assert "Copied hooks to User level" in msg
+        target_path = user_config / "settings.json"
+        assert target_path.exists()
+
+        import json
+
+        settings = json.loads(target_path.read_text())
+        assert "hooks" in settings
+        assert "PreToolUse" in settings["hooks"]
+
+    def test_write_hooks_merges_with_existing(
+        self, fs, fake_home: Path, fake_project_root: Path
+    ) -> None:
+        """Writing hooks merges with existing hooks at target level."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+        project_config = fake_project_root / ".claude"
+        fs.create_dir(project_config)
+
+        import json
+
+        existing_settings = {
+            "hooks": {
+                "PreToolUse": [{"matcher": "Write", "hooks": []}],
+                "Notification": [{"matcher": "idle_prompt", "hooks": []}],
+            },
+            "enabledPlugins": {"test-plugin@test": True},
+        }
+        fs.create_file(
+            user_config / "settings.json",
+            contents=json.dumps(existing_settings),
+        )
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.PROJECT,
+            path=project_config / "settings.json",
+            content='{"PreToolUse": [{"matcher": "Bash", "hooks": []}], "PostToolUse": [{"matcher": "Edit", "hooks": []}]}',
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.write_hook_customization(
+            customization,
+            ConfigLevel.USER,
+            user_config,
+            project_config,
+        )
+
+        assert success is True
+        target_path = user_config / "settings.json"
+        settings = json.loads(target_path.read_text())
+
+        assert "PreToolUse" in settings["hooks"]
+        assert len(settings["hooks"]["PreToolUse"]) == 2
+        assert "Notification" in settings["hooks"]
+        assert "PostToolUse" in settings["hooks"]
+        assert settings["enabledPlugins"]["test-plugin@test"] is True
+
+    def test_write_hooks_to_project_local_level(
+        self, fs, fake_home: Path, fake_project_root: Path
+    ) -> None:
+        """Writing hooks to project-local level creates settings.local.json."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+        project_config = fake_project_root / ".claude"
+        fs.create_dir(project_config)
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.USER,
+            path=user_config / "settings.json",
+            content='{"SessionStart": [{"hooks": [{"type": "command", "command": "setup.sh"}]}]}',
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.write_hook_customization(
+            customization,
+            ConfigLevel.PROJECT_LOCAL,
+            user_config,
+            project_config,
+        )
+
+        assert success is True
+        assert "Copied hooks to Project-Local level" in msg
+        target_path = project_config / "settings.local.json"
+        assert target_path.exists()
+
+        import json
+
+        settings = json.loads(target_path.read_text())
+        assert "SessionStart" in settings["hooks"]
+
+    def test_write_hooks_returns_error_when_no_hooks(
+        self, fs, fake_home: Path, fake_project_root: Path
+    ) -> None:
+        """Writing hooks returns error when source has no hooks."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+        project_config = fake_project_root / ".claude"
+        fs.create_dir(project_config)
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.PROJECT,
+            path=project_config / "settings.json",
+            content="{}",
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.write_hook_customization(
+            customization,
+            ConfigLevel.USER,
+            user_config,
+            project_config,
+        )
+
+        assert success is False
+        assert "No hooks to copy" in msg
+
+    def test_delete_hooks_removes_hooks_key_preserves_other_settings(
+        self, fs, fake_home: Path
+    ) -> None:
+        """Deleting hooks removes only hooks key, preserving other settings."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+
+        import json
+
+        settings = {
+            "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": []}]},
+            "enabledPlugins": {"test-plugin@test": True},
+        }
+        settings_path = user_config / "settings.json"
+        fs.create_file(settings_path, contents=json.dumps(settings))
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.USER,
+            path=settings_path,
+            content='{"PreToolUse": [{"matcher": "Bash", "hooks": []}]}',
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.delete_hook_customization(customization)
+
+        assert success is True
+        assert "Deleted hooks" in msg
+        assert settings_path.exists()
+
+        result = json.loads(settings_path.read_text())
+        assert "hooks" not in result
+        assert result["enabledPlugins"]["test-plugin@test"] is True
+
+    def test_delete_hooks_removes_file_when_empty(self, fs, fake_home: Path) -> None:
+        """Deleting hooks removes file when it becomes empty."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+
+        import json
+
+        settings = {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": []}]}}
+        settings_path = user_config / "settings.json"
+        fs.create_file(settings_path, contents=json.dumps(settings))
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.USER,
+            path=settings_path,
+            content='{"PreToolUse": [{"matcher": "Bash", "hooks": []}]}',
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.delete_hook_customization(customization)
+
+        assert success is True
+        assert not settings_path.exists()
+
+    def test_delete_hooks_returns_error_when_no_hooks(
+        self, fs, fake_home: Path
+    ) -> None:
+        """Deleting hooks returns error when file has no hooks."""
+        user_config = fake_home / ".claude"
+        fs.create_dir(user_config)
+
+        import json
+
+        settings = {"enabledPlugins": {"test-plugin@test": True}}
+        settings_path = user_config / "settings.json"
+        fs.create_file(settings_path, contents=json.dumps(settings))
+
+        customization = Customization(
+            name="settings.json",
+            type=CustomizationType.HOOK,
+            level=ConfigLevel.USER,
+            path=settings_path,
+            content="{}",
+        )
+
+        writer = CustomizationWriter()
+        success, msg = writer.delete_hook_customization(customization)
+
+        assert success is False
+        assert "No hooks found to delete" in msg
