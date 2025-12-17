@@ -175,6 +175,142 @@ class CustomizationWriter:
         except OSError as e:
             return (False, f"Failed to delete hooks: {e}")
 
+    def write_mcp_customization(
+        self,
+        customization: Customization,
+        target_level: ConfigLevel,
+        project_config_path: Path,
+    ) -> tuple[bool, str]:
+        """
+        Copy MCP server to target level.
+
+        Args:
+            customization: The MCP customization to copy
+            target_level: Target configuration level (USER, PROJECT, or PROJECT_LOCAL)
+            project_config_path: Path to project config directory (./.claude)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            target_path = self._get_mcp_file_path(target_level, project_config_path)
+
+            mcp_config = self._parse_mcp_content(customization.content)
+            if not mcp_config:
+                return (False, "Invalid MCP configuration")
+
+            data = self._read_settings_json(target_path)
+
+            if target_level == ConfigLevel.PROJECT_LOCAL:
+                project_path = str(project_config_path.parent).replace("\\", "/")
+                projects: dict[str, Any] = data.setdefault("projects", {})
+                project_data: dict[str, Any] = projects.setdefault(project_path, {})
+                mcp_servers: dict[str, Any] = project_data.setdefault("mcpServers", {})
+            else:
+                mcp_servers = data.setdefault("mcpServers", {})
+
+            if customization.name in mcp_servers:
+                return (
+                    False,
+                    f"MCP '{customization.name}' already exists at {target_level.label} level",
+                )
+
+            mcp_servers[customization.name] = mcp_config
+            self._write_settings_json(target_path, data)
+
+            return (
+                True,
+                f"Copied MCP '{customization.name}' to {target_level.label} level",
+            )
+
+        except PermissionError as e:
+            return (False, f"Permission denied writing to {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to copy MCP: {e}")
+
+    def delete_mcp_customization(
+        self,
+        customization: Customization,
+        project_config_path: Path,
+    ) -> tuple[bool, str]:
+        """
+        Delete MCP server from its source file (for move operation).
+
+        Removes only the specific MCP server, preserving other servers and settings.
+
+        Args:
+            customization: The MCP customization to delete
+            project_config_path: Path to project config directory (./.claude)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            source_path = customization.path
+            source_level = customization.level
+
+            data = self._read_settings_json(source_path)
+
+            if source_level == ConfigLevel.PROJECT_LOCAL:
+                project_path = str(project_config_path.parent).replace("\\", "/")
+                projects = data.get("projects", {})
+                project_data = projects.get(project_path) or projects.get(
+                    project_path.replace("/", "\\"), {}
+                )
+                mcp_servers = project_data.get("mcpServers", {})
+
+                if customization.name not in mcp_servers:
+                    return (False, f"MCP '{customization.name}' not found")
+
+                del mcp_servers[customization.name]
+                if not mcp_servers and "mcpServers" in project_data:
+                    del project_data["mcpServers"]
+            else:
+                mcp_servers = data.get("mcpServers", {})
+
+                if customization.name not in mcp_servers:
+                    return (False, f"MCP '{customization.name}' not found")
+
+                del mcp_servers[customization.name]
+                if not mcp_servers and "mcpServers" in data:
+                    del data["mcpServers"]
+
+            if source_level == ConfigLevel.PROJECT and not data:
+                source_path.unlink()
+            else:
+                self._write_settings_json(source_path, data)
+
+            return (True, f"Deleted MCP '{customization.name}'")
+
+        except PermissionError as e:
+            return (False, f"Permission denied deleting {e.filename}")
+        except OSError as e:
+            return (False, f"Failed to delete MCP: {e}")
+
+    def _get_mcp_file_path(
+        self,
+        level: ConfigLevel,
+        project_config_path: Path,
+    ) -> Path:
+        """Get MCP config file path for target level."""
+        if level == ConfigLevel.USER:
+            return Path.home() / ".claude.json"
+        elif level == ConfigLevel.PROJECT:
+            return project_config_path.parent / ".mcp.json"
+        elif level == ConfigLevel.PROJECT_LOCAL:
+            return Path.home() / ".claude.json"
+        raise ValueError(f"Unsupported level for MCP: {level}")
+
+    def _parse_mcp_content(self, content: str | None) -> dict[str, Any]:
+        """Parse MCP content JSON string to dict."""
+        if not content:
+            return {}
+        try:
+            result: dict[str, Any] = json.loads(content)
+            return result
+        except json.JSONDecodeError:
+            return {}
+
     def _get_hook_settings_path(
         self,
         level: ConfigLevel,
@@ -258,6 +394,9 @@ class CustomizationWriter:
 
         elif customization.type == CustomizationType.SKILL:
             return base_path / "skills" / customization.name
+
+        elif customization.type == CustomizationType.MEMORY_FILE:
+            return base_path / customization.path.name
 
         else:
             raise ValueError(f"Unsupported customization type: {customization.type}")
