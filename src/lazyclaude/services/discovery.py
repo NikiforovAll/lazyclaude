@@ -1,5 +1,6 @@
 """Service for discovering Claude Code customizations."""
 
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -110,10 +111,12 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             project_config_path: Override for ./.claude (testing)
         """
         self.user_config_path = user_config_path or Path.home() / ".claude"
-        self.project_config_path = project_config_path or Path.cwd() / ".claude"
-        self.project_root = (
-            project_config_path.parent if project_config_path else Path.cwd()
+        self.project_config_path = (
+            project_config_path.resolve()
+            if project_config_path
+            else Path.cwd() / ".claude"
         )
+        self.project_root = self.project_config_path.parent
 
         self._scanner = FilesystemScanner()
         self._plugin_loader = PluginLoader(
@@ -237,7 +240,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         return customizations
 
     def _discover_mcps(self) -> list[Customization]:
-        """Discover MCP configurations from user and project levels."""
+        """Discover MCP configurations from user, local, and project levels."""
         customizations: list[Customization] = []
         parser = MCPParser()
 
@@ -245,9 +248,45 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         if user_mcp_file.is_file():
             customizations.extend(parser.parse(user_mcp_file, ConfigLevel.USER))
 
+        customizations.extend(self._discover_local_mcps())
+
         project_mcp_file = self.project_root / ".mcp.json"
         if project_mcp_file.is_file():
             customizations.extend(parser.parse(project_mcp_file, ConfigLevel.PROJECT))
+
+        return customizations
+
+    def _discover_local_mcps(self) -> list[Customization]:
+        """Discover local-scoped MCPs from ~/.claude.json projects."""
+        customizations: list[Customization] = []
+        claude_json = Path.home() / ".claude.json"
+
+        if not claude_json.is_file():
+            return customizations
+
+        try:
+            data = json.loads(claude_json.read_text(encoding="utf-8"))
+            projects = data.get("projects", {})
+
+            project_path = str(self.project_root).replace("\\", "/")
+
+            mcp_servers = None
+            for key in [project_path, project_path.replace("/", "\\")]:
+                if key in projects:
+                    mcp_servers = projects[key].get("mcpServers", {})
+                    break
+
+            if not mcp_servers:
+                return customizations
+
+            parser = MCPParser()
+            for server_name, server_config in mcp_servers.items():
+                customization = parser.parse_server_config(
+                    server_name, server_config, claude_json, ConfigLevel.PROJECT_LOCAL
+                )
+                customizations.append(customization)
+        except (OSError, json.JSONDecodeError):
+            pass
 
         return customizations
 

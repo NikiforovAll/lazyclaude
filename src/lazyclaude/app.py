@@ -383,17 +383,29 @@ class LazyClaude(App):
             CustomizationType.SLASH_COMMAND,
             CustomizationType.SUBAGENT,
             CustomizationType.SKILL,
+            CustomizationType.HOOK,
         ]:
             self._show_status_error(
                 f"Cannot copy {customization.type_label} customizations"
             )
             return
 
-        available = [
-            level
-            for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
-            if level != customization.level
-        ]
+        if customization.type == CustomizationType.HOOK:
+            available = [
+                level
+                for level in [
+                    ConfigLevel.USER,
+                    ConfigLevel.PROJECT,
+                    ConfigLevel.PROJECT_LOCAL,
+                ]
+                if level != customization.level
+            ]
+        else:
+            available = [
+                level
+                for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
+                if level != customization.level
+            ]
 
         if not available:
             self._show_status_error("No available target levels")
@@ -415,6 +427,7 @@ class LazyClaude(App):
             CustomizationType.SLASH_COMMAND,
             CustomizationType.SUBAGENT,
             CustomizationType.SKILL,
+            CustomizationType.HOOK,
         ]:
             self._show_status_error(
                 f"Cannot move {customization.type_label} customizations"
@@ -425,11 +438,22 @@ class LazyClaude(App):
             self._show_status_error("Cannot move from plugin-level customizations")
             return
 
-        available = [
-            level
-            for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
-            if level != customization.level
-        ]
+        if customization.type == CustomizationType.HOOK:
+            available = [
+                level
+                for level in [
+                    ConfigLevel.USER,
+                    ConfigLevel.PROJECT,
+                    ConfigLevel.PROJECT_LOCAL,
+                ]
+                if level != customization.level
+            ]
+        else:
+            available = [
+                level
+                for level in [ConfigLevel.USER, ConfigLevel.PROJECT]
+                if level != customization.level
+            ]
 
         if not available:
             self._show_status_error("No available target levels")
@@ -728,19 +752,32 @@ class LazyClaude(App):
         """Handle copy or move operation."""
         writer = CustomizationWriter()
 
-        success, msg = writer.write_customization(
-            customization,
-            target_level,
-            self._discovery_service.user_config_path,
-            self._discovery_service.project_config_path,
-        )
+        if customization.type == CustomizationType.HOOK:
+            success, msg = writer.write_hook_customization(
+                customization,
+                target_level,
+                self._discovery_service.user_config_path,
+                self._discovery_service.project_config_path,
+            )
+        else:
+            success, msg = writer.write_customization(
+                customization,
+                target_level,
+                self._discovery_service.user_config_path,
+                self._discovery_service.project_config_path,
+            )
 
         if not success:
             self._show_status_error(msg)
             return
 
         if operation == "move":
-            delete_success, delete_msg = writer.delete_customization(customization)
+            if customization.type == CustomizationType.HOOK:
+                delete_success, delete_msg = writer.delete_hook_customization(
+                    customization
+                )
+            else:
+                delete_success, delete_msg = writer.delete_customization(customization)
             if not delete_success:
                 self._show_status_error(
                     f"Copied but failed to delete source: {delete_msg}"

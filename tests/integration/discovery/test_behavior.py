@@ -207,7 +207,7 @@ class TestPathResolution:
 
         active_path = service.get_active_config_path()
 
-        assert active_path == project_config_path
+        assert active_path == project_config_path.resolve()
 
     def test_returns_user_path_when_project_missing(
         self,

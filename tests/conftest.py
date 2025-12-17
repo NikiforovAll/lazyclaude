@@ -99,6 +99,18 @@ def project_mcp_config(fake_project_root: Path, fs: FakeFilesystem) -> Path:
 
 
 @pytest.fixture
+def local_mcp_config(fake_home: Path, fs: FakeFilesystem) -> Path:
+    """Create local-level MCP config (~/.claude.json with projects section)."""
+    mcp_path = fake_home / ".claude.json"
+    fs.add_real_file(
+        FIXTURES_DIR / "mcp" / "local.claude.json",
+        target_path=mcp_path,
+        read_only=False,
+    )
+    return mcp_path
+
+
+@pytest.fixture
 def project_config_path(fake_project_root: Path, fs: FakeFilesystem) -> Path:
     """Create project config directory (./.claude) with fixtures."""
     project_claude = fake_project_root / ".claude"
