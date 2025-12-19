@@ -65,6 +65,8 @@ class TypePanel(Widget):
     TypePanel .item {
         height: 1;
         width: 100%;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
     }
 
     TypePanel .item-selected {
