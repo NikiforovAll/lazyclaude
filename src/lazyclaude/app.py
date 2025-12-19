@@ -15,6 +15,7 @@ from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
+    MemoryFileRef,
 )
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
@@ -311,6 +312,37 @@ class LazyClaude(App):
                 )
                 self._main_pane.display_path = resolved
 
+    def on_type_panel_memory_file_ref_selected(
+        self, message: TypePanel.MemoryFileRefSelected
+    ) -> None:
+        """Handle memory file ref selection in the memory files tree."""
+        self._handle_memory_file_ref_selected(message.ref)
+
+    def on_combined_panel_memory_file_ref_selected(
+        self, message: CombinedPanel.MemoryFileRefSelected
+    ) -> None:
+        """Handle memory file ref selection in the combined panel."""
+        self._handle_memory_file_ref_selected(message.ref)
+
+    def _handle_memory_file_ref_selected(self, ref: MemoryFileRef | None) -> None:
+        """Handle memory file ref selection from any panel."""
+        if self._main_pane:
+            self._main_pane.selected_ref = ref
+            customization = self._main_pane.customization
+            if customization and self._config_path_resolver:
+                path_to_resolve = ref.path if ref and ref.path else None
+                if path_to_resolve:
+                    resolved = self._config_path_resolver.resolve_path(
+                        customization, path_to_resolve
+                    )
+                    self._main_pane.display_path = resolved
+                else:
+                    self._main_pane.display_path = (
+                        self._config_path_resolver.resolve_path(
+                            customization, customization.path
+                        )
+                    )
+
     async def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
@@ -490,6 +522,7 @@ class LazyClaude(App):
         elif current < len(self._panels) - 1:
             self._panels[current + 1].focus()
         elif current == len(self._panels) - 1 and self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.MEMORY_FILE)
             self._combined_panel.focus()
         elif self._panels:
             self._panels[0].focus()
@@ -499,6 +532,7 @@ class LazyClaude(App):
         current = self._get_focused_panel_index()
         if current is None or current == 0:
             if self._combined_panel:
+                self._combined_panel.switch_to_type(CustomizationType.HOOK)
                 self._combined_panel.focus()
             elif self._panels:
                 self._panels[-1].focus()

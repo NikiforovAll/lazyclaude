@@ -77,6 +77,17 @@ class SkillFile:
 
 
 @dataclass
+class MemoryFileRef:
+    """A file referenced in a memory file via @path syntax."""
+
+    name: str
+    path: Path | None
+    content: str | None = None
+    exists: bool = False
+    children: list["MemoryFileRef"] = field(default_factory=list)
+
+
+@dataclass
 class SkillMetadata:
     """Metadata specific to skills."""
 
