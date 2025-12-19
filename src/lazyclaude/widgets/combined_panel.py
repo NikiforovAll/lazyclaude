@@ -77,6 +77,8 @@ class CombinedPanel(Widget):
     CombinedPanel .item {
         height: 1;
         width: 100%;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
     }
 
     CombinedPanel .item-selected {

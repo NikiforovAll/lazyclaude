@@ -59,6 +59,8 @@ TypePanel .items-container {
 TypePanel .item {
     height: 1;
     width: 100%;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 TypePanel .item-selected {
@@ -99,6 +101,8 @@ CombinedPanel .items-container {
 CombinedPanel .item {
     height: 1;
     width: 100%;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 CombinedPanel .item-selected {
