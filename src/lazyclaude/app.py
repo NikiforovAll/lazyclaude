@@ -15,6 +15,7 @@ from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
+    MemoryFileRef,
 )
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
@@ -310,6 +311,37 @@ class LazyClaude(App):
                     customization, path_to_resolve
                 )
                 self._main_pane.display_path = resolved
+
+    def on_type_panel_memory_file_ref_selected(
+        self, message: TypePanel.MemoryFileRefSelected
+    ) -> None:
+        """Handle memory file ref selection in the memory files tree."""
+        self._handle_memory_file_ref_selected(message.ref)
+
+    def on_combined_panel_memory_file_ref_selected(
+        self, message: CombinedPanel.MemoryFileRefSelected
+    ) -> None:
+        """Handle memory file ref selection in the combined panel."""
+        self._handle_memory_file_ref_selected(message.ref)
+
+    def _handle_memory_file_ref_selected(self, ref: MemoryFileRef | None) -> None:
+        """Handle memory file ref selection from any panel."""
+        if self._main_pane:
+            self._main_pane.selected_ref = ref
+            customization = self._main_pane.customization
+            if customization and self._config_path_resolver:
+                path_to_resolve = ref.path if ref and ref.path else None
+                if path_to_resolve:
+                    resolved = self._config_path_resolver.resolve_path(
+                        customization, path_to_resolve
+                    )
+                    self._main_pane.display_path = resolved
+                else:
+                    self._main_pane.display_path = (
+                        self._config_path_resolver.resolve_path(
+                            customization, customization.path
+                        )
+                    )
 
     async def action_quit(self) -> None:
         """Quit the application."""

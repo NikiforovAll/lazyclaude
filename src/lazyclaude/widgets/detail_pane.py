@@ -11,7 +11,7 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
-from lazyclaude.models.customization import Customization
+from lazyclaude.models.customization import Customization, MemoryFileRef
 
 TEXTUAL_TO_PYGMENTS_THEME: dict[str, str] = {
     "dracula": "dracula",
@@ -82,6 +82,7 @@ class MainPane(Widget):
         self.can_focus = True
 
     selected_file: reactive[Path | None] = reactive(None)
+    selected_ref: reactive[MemoryFileRef | None] = reactive(None)
 
     def compose(self) -> ComposeResult:
         """Compose the pane content."""
@@ -165,6 +166,9 @@ class MainPane(Widget):
         if self.selected_file:
             return self._render_selected_file()
 
+        if self.selected_ref:
+            return self._render_selected_ref()
+
         if not self.customization:
             return "[dim italic]No content to display[/]"
         if self.customization.has_error:
@@ -229,6 +233,43 @@ class MainPane(Widget):
             word_wrap=True,
         )
 
+    def _render_selected_ref(self) -> RenderableType:
+        """Render content of a selected memory file reference."""
+        if not self.selected_ref:
+            return "[dim italic]No reference selected[/]"
+
+        ref = self.selected_ref
+        if not ref.exists:
+            return f"[red]Reference not found:[/] @{ref.name}"
+
+        if not ref.content:
+            return "[dim italic]Empty file[/]"
+
+        suffix = ref.path.suffix.lower() if ref.path else ".md"
+        theme = self._get_syntax_theme()
+
+        lexer_map = {
+            ".md": "markdown",
+            ".json": "json",
+            ".py": "python",
+            ".sh": "bash",
+            ".yaml": "yaml",
+            ".yml": "yaml",
+            ".js": "javascript",
+            ".ts": "typescript",
+        }
+        lexer = lexer_map.get(suffix, "text")
+
+        if suffix == ".md":
+            return self._render_markdown_with_frontmatter(ref.content)
+
+        return Syntax(
+            ref.content,
+            lexer,
+            theme=theme,
+            word_wrap=True,
+        )
+
     def on_mount(self) -> None:
         """Handle mount event."""
         self._update_title()
@@ -251,12 +292,14 @@ class MainPane(Widget):
     def _render_footer(self) -> str:
         """Render the panel footer with file path.
 
-        Priority: display_path > selected_file > customization.path
+        Priority: display_path > selected_file > selected_ref > customization.path
         """
         if self.display_path:
             return str(self.display_path)
         if self.selected_file:
             return str(self.selected_file)
+        if self.selected_ref and self.selected_ref.path:
+            return str(self.selected_ref.path)
         if not self.customization:
             return ""
         return str(self.customization.path)
@@ -272,6 +315,7 @@ class MainPane(Widget):
     ) -> None:
         """React to customization changes."""
         self.selected_file = None
+        self.selected_ref = None
         if customization is None:
             self.display_path = None
         self.border_subtitle = self._render_footer()
@@ -279,6 +323,14 @@ class MainPane(Widget):
 
     def watch_selected_file(self, path: Path | None) -> None:  # noqa: ARG002
         """React to selected file changes (for skill files)."""
+        self.border_subtitle = self._render_footer()
+        self._refresh_display()
+
+    def watch_selected_ref(
+        self,
+        ref: MemoryFileRef | None,  # noqa: ARG002
+    ) -> None:
+        """React to selected ref changes (for memory file references)."""
         self.border_subtitle = self._render_footer()
         self._refresh_display()
 

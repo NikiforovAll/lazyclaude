@@ -189,6 +189,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         """Discover memory files from user and project levels."""
         customizations: list[Customization] = []
         parser = MemoryFileParser()
+        seen_paths: set[Path] = set()
 
         user_memory_files = [
             self.user_config_path / "CLAUDE.md",
@@ -196,46 +197,88 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         ]
         for memory_file in user_memory_files:
             if memory_file.is_file():
+                resolved = memory_file.resolve()
+                seen_paths.add(resolved)
                 customizations.append(parser.parse(memory_file, ConfigLevel.USER))
+
+        user_local_file = self.user_config_path / "CLAUDE.local.md"
+        if user_local_file.is_file():
+            resolved = user_local_file.resolve()
+            seen_paths.add(resolved)
+            customizations.append(parser.parse(user_local_file, ConfigLevel.USER))
 
         project_memory_files = [
             self.project_config_path / "CLAUDE.md",
             self.project_config_path / "AGENTS.md",
             self.project_root / "CLAUDE.md",
             self.project_root / "AGENTS.md",
-            self.project_root / "CLAUDE.local.md",
         ]
 
-        seen_paths: set[Path] = set()
         for memory_file in project_memory_files:
             resolved = memory_file.resolve()
             if memory_file.is_file() and resolved not in seen_paths:
                 seen_paths.add(resolved)
                 customizations.append(parser.parse(memory_file, ConfigLevel.PROJECT))
 
+        for claude_md in self.project_root.rglob("CLAUDE.md"):
+            resolved = claude_md.resolve()
+            if resolved not in seen_paths:
+                seen_paths.add(resolved)
+                customization = parser.parse(claude_md, ConfigLevel.PROJECT)
+                try:
+                    rel_path = claude_md.relative_to(self.project_root)
+                    customization.name = str(rel_path)
+                except ValueError:
+                    pass
+                customizations.append(customization)
+
+        project_local_files = [
+            self.project_root / "CLAUDE.local.md",
+            self.project_config_path / "CLAUDE.local.md",
+        ]
+        for local_file in project_local_files:
+            resolved = local_file.resolve()
+            if local_file.is_file() and resolved not in seen_paths:
+                seen_paths.add(resolved)
+                customizations.append(
+                    parser.parse(local_file, ConfigLevel.PROJECT_LOCAL)
+                )
+
         return customizations
 
     def _discover_rules(self) -> list[Customization]:
-        """Discover project rules from .claude/rules/ directory."""
+        """Discover rules from user and project levels."""
         customizations: list[Customization] = []
         parser = MemoryFileParser()
-
-        rules_dir = self.project_config_path / "rules"
-        if not rules_dir.is_dir():
-            return customizations
-
         seen_paths: set[Path] = set()
-        for rule_file in rules_dir.rglob("*.md"):
-            if not rule_file.is_file():
-                continue
-            resolved = rule_file.resolve()
-            if resolved in seen_paths:
-                continue
-            seen_paths.add(resolved)
 
-            customization = parser.parse(rule_file, ConfigLevel.PROJECT)
-            customization.name = str(rule_file.relative_to(rules_dir))
-            customizations.append(customization)
+        user_rules_dir = self.user_config_path / "rules"
+        if user_rules_dir.is_dir():
+            for rule_file in user_rules_dir.rglob("*.md"):
+                if not rule_file.is_file():
+                    continue
+                resolved = rule_file.resolve()
+                if resolved in seen_paths:
+                    continue
+                seen_paths.add(resolved)
+
+                customization = parser.parse(rule_file, ConfigLevel.USER)
+                customization.name = str(rule_file.relative_to(user_rules_dir))
+                customizations.append(customization)
+
+        project_rules_dir = self.project_config_path / "rules"
+        if project_rules_dir.is_dir():
+            for rule_file in project_rules_dir.rglob("*.md"):
+                if not rule_file.is_file():
+                    continue
+                resolved = rule_file.resolve()
+                if resolved in seen_paths:
+                    continue
+                seen_paths.add(resolved)
+
+                customization = parser.parse(rule_file, ConfigLevel.PROJECT)
+                customization.name = str(rule_file.relative_to(project_rules_dir))
+                customizations.append(customization)
 
         return customizations
 

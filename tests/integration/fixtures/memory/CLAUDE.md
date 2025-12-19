@@ -1,7 +1,8 @@
 # Project Guidelines
 
-@AGENTS.md
+This is a test memory file for integration tests.
 
-## Code Style
-- Use type hints
-- Follow PEP 8
+## Development Guidelines
+
+- Follow the project conventions
+- Use clear naming

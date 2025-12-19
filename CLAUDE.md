@@ -75,6 +75,8 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 
 ## Architecture
 
+### Data Flow
+
 ```
 User Input → App (app.py) → TypePanel widgets → SelectionChanged message
                 ↓                                        ↓
@@ -85,21 +87,77 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
          Customization models
 ```
 
-**Data Flow**:
-1. `ConfigDiscoveryService` discovers files from multiple sources:
-   - User: `~/.claude/` (commands, agents, skills, memory files)
-   - Project: `./.claude/` and project root (CLAUDE.md, .mcp.json)
-   - Plugins: `~/.claude/plugins/` (enabled plugins from installed_plugins.json)
+1. `ConfigDiscoveryService` discovers files from multiple sources (User, Project, Plugin)
 2. Type-specific parsers in `services/parsers/` extract frontmatter metadata and content
 3. `Customization` objects are created with `ConfigLevel` (USER, PROJECT, PROJECT_LOCAL, PLUGIN)
 4. Selection changes emit `TypePanel.SelectionChanged` messages handled by `App` to update `MainPane`
 
-**CustomizationTypes**: SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
+### Widget Layout
 
-**ConfigLevels**: USER, PROJECT, PROJECT_LOCAL, PLUGIN
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ LazyClaude App                                                          │
+├────────────────────────┬────────────────────────────────────────────────┤
+│ #sidebar (Container)   │ MainPane                                       │
+│ ┌────────────────────┐ │ ┌────────────────────────────────────────────┐ │
+│ │ StatusPanel        │ │ │ Content/Metadata view for selected item    │ │
+│ │ Path | Filter      │ │ │ Switchable with [ / ]                      │ │
+│ └────────────────────┘ │ │                                            │ │
+│ ┌────────────────────┐ │ │ Supports:                                  │ │
+│ │ TypePanel [1]      │ │ │ - Syntax highlighting                      │ │
+│ │ Slash Commands     │ │ │ - Markdown rendering                       │ │
+│ └────────────────────┘ │ │ - File tree for skills                     │ │
+│ ┌────────────────────┐ │ │ - Memory file refs (@path)                 │ │
+│ │ TypePanel [2]      │ │ │                                            │ │
+│ │ Subagents          │ │ │                                            │ │
+│ └────────────────────┘ │ │                                            │ │
+│ ┌────────────────────┐ │ │                                            │ │
+│ │ TypePanel [3]      │ │ │                                            │ │
+│ │ Skills             │ │ │                                            │ │
+│ └────────────────────┘ │ │                                            │ │
+│ ┌────────────────────┐ │ │                                            │ │
+│ │ CombinedPanel      │ │ │                                            │ │
+│ │ [4]Mem [5]MCP [6]H │ │ │                                            │ │
+│ └────────────────────┘ │ └────────────────────────────────────────────┘ │
+├────────────────────────┴────────────────────────────────────────────────┤
+│ Footer                                                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Modal overlays (hidden by default, dock: bottom):
+- FilterInput: Search/filter (activated with /)
+- LevelSelector: Copy/move target selection (activated with c/m)
+- DeleteConfirm: Delete confirmation (activated with d)
+- PluginConfirm: Plugin enable/disable confirmation (activated with t)
+```
+
+### Widget Responsibilities
+
+| Widget | File | Purpose |
+|--------|------|---------|
+| `TypePanel` | `widgets/type_panel.py` | Single-type list panel (Commands, Subagents, Skills) with expandable trees |
+| `CombinedPanel` | `widgets/combined_panel.py` | Multi-type tabbed panel (Memory, MCPs, Hooks) |
+| `MainPane` | `widgets/detail_pane.py` | Content/metadata detail view with syntax highlighting |
+| `StatusPanel` | `widgets/status_panel.py` | Shows current path and filter status |
+| `FilterInput` | `widgets/filter_input.py` | Search input modal |
+| `LevelSelector` | `widgets/level_selector.py` | Target level selector for copy/move |
+| `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
+| `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
+
+### Shared Helpers
+
+`widgets/helpers/rendering.py` contains shared rendering utilities:
+- `render_memory_item()` - Renders memory file tree items
+- `build_memory_flat_items()` - Builds flat list from nested memory refs
+
+### CustomizationTypes
+
+SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
+
+### ConfigLevels
+
 - USER: `~/.claude/` - User's global configuration
 - PROJECT: `./.claude/` - Project-specific files checked into version control
-- PROJECT_LOCAL: `./.claude/local/` - Project-local files (not version controlled, .gitignored)
+- PROJECT_LOCAL: `./.claude/local/` - Project-local files (not version controlled)
 - PLUGIN: `~/.claude/plugins/` - Installed third-party plugin extensions
 
 ## Implementation Principles
