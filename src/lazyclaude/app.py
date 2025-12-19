@@ -522,6 +522,7 @@ class LazyClaude(App):
         elif current < len(self._panels) - 1:
             self._panels[current + 1].focus()
         elif current == len(self._panels) - 1 and self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.MEMORY_FILE)
             self._combined_panel.focus()
         elif self._panels:
             self._panels[0].focus()
@@ -531,6 +532,7 @@ class LazyClaude(App):
         current = self._get_focused_panel_index()
         if current is None or current == 0:
             if self._combined_panel:
+                self._combined_panel.switch_to_type(CustomizationType.HOOK)
                 self._combined_panel.focus()
             elif self._panels:
                 self._panels[-1].focus()

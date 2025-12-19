@@ -531,12 +531,20 @@ class CombinedPanel(Widget):
             self.active_type = ctype
 
     def action_focus_next_panel(self) -> None:
-        """Delegate to app's focus_next_panel action."""
-        cast("LazyClaude", self.app).action_focus_next_panel()
+        """Cycle through tabs, then delegate to app when on last tab."""
+        current_idx = self.COMBINED_TYPES.index(self.active_type)
+        if current_idx < len(self.COMBINED_TYPES) - 1:
+            self.active_type = self.COMBINED_TYPES[current_idx + 1]
+        else:
+            cast("LazyClaude", self.app).action_focus_next_panel()
 
     def action_focus_previous_panel(self) -> None:
-        """Delegate to app's focus_previous_panel action."""
-        cast("LazyClaude", self.app).action_focus_previous_panel()
+        """Cycle through tabs backward, then delegate to app when on first tab."""
+        current_idx = self.COMBINED_TYPES.index(self.active_type)
+        if current_idx > 0:
+            self.active_type = self.COMBINED_TYPES[current_idx - 1]
+        else:
+            cast("LazyClaude", self.app).action_focus_previous_panel()
 
     async def action_back(self) -> None:
         """Delegate to app's back action."""
