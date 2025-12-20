@@ -62,6 +62,7 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `m` | Move to level | Global |
 | `C` | Copy path to clipboard | Global |
 | `Ctrl+u` | Open user config (~/.claude, ~/.claude.json) | Global |
+| `M` | Open marketplace browser | Global |
 | `a`/`u`/`p`/`P` | Filter: All/User/Project/Plugin | Global |
 | `D` | Toggle disabled plugins | Global |
 | `[`/`]` | Switch content/metadata view | Global |
@@ -142,6 +143,7 @@ Modal overlays (hidden by default, dock: bottom):
 | `LevelSelector` | `widgets/level_selector.py` | Target level selector for copy/move |
 | `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
+| `MarketplaceModal` | `widgets/marketplace_modal.py` | Marketplace browser overlay |
 
 ### Shared Helpers
 
@@ -159,6 +161,40 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 - PROJECT: `./.claude/` - Project-specific files checked into version control
 - PROJECT_LOCAL: `./.claude/local/` - Project-local files (not version controlled)
 - PLUGIN: `~/.claude/plugins/` - Installed third-party plugin extensions
+
+### Plugin & Marketplace System
+
+**Data Sources:**
+- `~/.claude/plugins/known_marketplaces.json` - Index of registered marketplaces
+- `<marketplace_install_location>/.claude-plugin/marketplace.json` - Per-marketplace plugin catalog
+- `~/.claude/plugins/installed_plugins.json` - Registry of installed plugins with paths and versions
+
+**Key Models (`models/marketplace.py`):**
+- `MarketplaceSource` - Source type (github/directory), repo, path
+- `MarketplaceEntry` - Marketplace name, source, install_location
+- `MarketplacePlugin` - Plugin metadata including full_plugin_id (`name@marketplace`), install state, install_path
+- `Marketplace` - Entry + list of plugins
+
+**Services:**
+- `MarketplaceLoader` (`services/marketplace_loader.py`) - Loads marketplaces and determines plugin install/enabled state from PluginLoader registry
+- `PluginLoader` (`services/plugin_loader.py`) - Manages installed_plugins.json registry, resolves install paths
+
+**Marketplace Modal (`widgets/marketplace_modal.py`):**
+- Opens with `M` (Shift+m) as full-screen overlay using `layer: overlay`
+- Uses Textual Tree widget: marketplaces as expandable roots, plugins as leaves
+- Status icons: `[green]I[/]` (installed+enabled), `[yellow]D[/]` (disabled), `[ ]` (not installed)
+- Bindings: `i` (install/toggle), `d` (uninstall), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
+- Emits messages: `PluginToggled`, `PluginUninstall`, `OpenPluginFolder`, `ModalClosed`
+
+**Plugin Actions (via Claude CLI):**
+```bash
+claude plugin install <plugin_id>   # Install from marketplace
+claude plugin enable <plugin_id>    # Enable disabled plugin
+claude plugin disable <plugin_id>   # Disable enabled plugin
+claude plugin uninstall <plugin_id> # Remove installed plugin
+```
+
+Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 
 ## Implementation Principles
 

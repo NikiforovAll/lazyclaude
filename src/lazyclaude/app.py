@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 
 import pyperclip
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -16,16 +17,20 @@ from lazyclaude.models.customization import (
     Customization,
     CustomizationType,
     MemoryFileRef,
+    PluginInfo,
 )
+from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
+from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
+from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
@@ -35,6 +40,7 @@ class LazyClaude(App):
     """A lazygit-style TUI for visualizing Claude Code customizations."""
 
     CSS_PATH = "styles/app.tcss"
+    LAYERS = ["default", "overlay"]
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
@@ -47,7 +53,6 @@ class LazyClaude(App):
         Binding("C", "copy_config_path", "Copy Path"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
-        Binding("escape", "back", "Back", show=False),
         Binding("a", "filter_all", "All"),
         Binding("u", "filter_user", "User"),
         Binding("p", "filter_project", "Project"),
@@ -65,6 +70,9 @@ class LazyClaude(App):
         Binding("5", "focus_panel_5", "Panel 5", show=False),
         Binding("6", "focus_panel_6", "Panel 6", show=False),
         Binding("ctrl+u", "open_user_config", "User Config", show=False),
+        Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
+        Binding("escape", "exit_preview", "Exit Preview", show=True, priority=True),
+        Binding("escape", "back", "Back", show=False),
     ]
 
     TITLE = "LazyClaude"
@@ -107,6 +115,8 @@ class LazyClaude(App):
         self._level_selector: LevelSelector | None = None
         self._plugin_confirm: PluginConfirm | None = None
         self._delete_confirm: DeleteConfirm | None = None
+        self._marketplace_modal: MarketplaceModal | None = None
+        self._marketplace_loader: MarketplaceLoader | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
         self._last_focused_combined: bool = False
@@ -114,6 +124,9 @@ class LazyClaude(App):
         self._panel_before_selector: TypePanel | None = None
         self._combined_before_selector: bool = False
         self._config_path_resolver: ConfigPathResolver | None = None
+        self._plugin_preview_mode: bool = False
+        self._previewing_plugin: MarketplacePlugin | None = None
+        self._plugin_customizations: list[Customization] = []
 
     def _fatal_error(self) -> None:
         """Print simple traceback instead of Rich's fancy one."""
@@ -156,6 +169,9 @@ class LazyClaude(App):
         self._delete_confirm = DeleteConfirm(id="delete-confirm")
         yield self._delete_confirm
 
+        self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
+        yield self._marketplace_modal
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -166,6 +182,12 @@ class LazyClaude(App):
         self._config_path_resolver = ConfigPathResolver(
             self._discovery_service._plugin_loader,
         )
+        self._marketplace_loader = MarketplaceLoader(
+            user_config_path=self._discovery_service.user_config_path,
+            plugin_loader=self._discovery_service._plugin_loader,
+        )
+        if self._marketplace_modal:
+            self._marketplace_modal.set_loader(self._marketplace_loader)
 
     def check_action(
         self,
@@ -173,6 +195,31 @@ class LazyClaude(App):
         parameters: tuple[object, ...],  # noqa: ARG002
     ) -> bool | None:
         """Control action availability based on current state."""
+        # exit_preview only available in preview mode
+        if action == "exit_preview":
+            return self._plugin_preview_mode
+
+        # In preview mode, hide most actions and show only relevant ones
+        if self._plugin_preview_mode:
+            preview_allowed_actions = {
+                "quit",
+                "toggle_help",
+                "search",
+                "focus_next_panel",
+                "focus_previous_panel",
+                "focus_panel_1",
+                "focus_panel_2",
+                "focus_panel_3",
+                "focus_panel_4",
+                "focus_panel_5",
+                "focus_panel_6",
+                "focus_main_pane",
+                "prev_view",
+                "next_view",
+                "exit_preview",
+            }
+            return action in preview_allowed_actions
+
         if action == "toggle_plugin_enabled":
             if not self._main_pane or not self._main_pane.customization:
                 return False
@@ -215,11 +262,19 @@ class LazyClaude(App):
 
     def _update_panels(self) -> None:
         """Update all panels with filtered customizations."""
-        filtered = self._get_filtered_customizations()
+        if self._plugin_preview_mode:
+            customizations = self._filter_service.filter(
+                self._plugin_customizations,
+                query=self._search_query,
+                level=None,
+                plugin_enabled=None,
+            )
+        else:
+            customizations = self._get_filtered_customizations()
         for panel in self._panels:
-            panel.set_customizations(filtered)
+            panel.set_customizations(customizations)
         if self._combined_panel:
-            self._combined_panel.set_customizations(filtered)
+            self._combined_panel.set_customizations(customizations)
 
     def _get_filtered_customizations(self) -> list[Customization]:
         """Get customizations filtered by current level and search query."""
@@ -244,6 +299,10 @@ class LazyClaude(App):
 
     def _update_subtitle(self) -> None:
         """Update subtitle to reflect current filter state."""
+        if self._plugin_preview_mode and self._previewing_plugin:
+            self.sub_title = f"Preview: {self._previewing_plugin.name} | Esc to exit"
+            return
+
         parts = []
         if self._level_filter == ConfigLevel.USER:
             parts.append("User Level")
@@ -504,7 +563,11 @@ class LazyClaude(App):
             self._delete_confirm.show(customization)
 
     async def action_back(self) -> None:
-        """Go back - return focus to panel from main pane, keep content visible."""
+        """Go back - exit preview mode, or return focus to panel from main pane."""
+        if self._plugin_preview_mode:
+            self._exit_plugin_preview()
+            return
+
         if self._main_pane and self._main_pane.has_focus:
             if self._last_focused_combined and self._combined_panel:
                 self._combined_panel.focus()
@@ -746,6 +809,88 @@ class LazyClaude(App):
         if self._filter_input:
             self._filter_input.show()
 
+    def action_toggle_marketplace(self) -> None:
+        """Toggle the marketplace browser modal."""
+        if self._marketplace_modal:
+            if self._marketplace_modal.is_visible:
+                self._marketplace_modal.hide()
+                self._restore_focus_after_selector()
+            else:
+                self._panel_before_selector = self._get_focused_panel()
+                self._combined_before_selector = (
+                    self._combined_panel.has_focus if self._combined_panel else False
+                )
+                self._marketplace_modal.show()
+
+    def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
+        """Enter plugin preview mode - show plugin's customizations in panels."""
+        if not self._marketplace_loader:
+            self.notify("Marketplace loader not available", severity="error")
+            return
+
+        plugin_dir = self._marketplace_loader.get_plugin_source_dir(plugin)
+        if not plugin_dir or not plugin_dir.exists():
+            self.notify("Plugin source not found", severity="warning")
+            return
+
+        plugin_info = PluginInfo(
+            plugin_id=plugin.full_plugin_id,
+            short_name=plugin.name,
+            version="preview",
+            install_path=plugin_dir,
+            is_enabled=plugin.is_enabled,
+        )
+        self._plugin_customizations = self._discovery_service.discover_from_directory(
+            plugin_dir, plugin_info
+        )
+        self._previewing_plugin = plugin
+        self._plugin_preview_mode = True
+
+        if self._marketplace_modal:
+            self._marketplace_modal.hide()
+
+        self._update_panels()
+        self._update_subtitle()
+        self.refresh_bindings()
+        if self._status_panel:
+            self._status_panel.config_path = f"Preview: {plugin.name}"
+            self._status_panel.filter_level = "Plugin"
+
+        if self._main_pane:
+            self._main_pane.customization = None
+
+        if self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.MCP)
+
+    def _exit_plugin_preview(self) -> None:
+        """Exit plugin preview mode and return to marketplace."""
+        self._plugin_preview_mode = False
+        self._previewing_plugin = None
+        self._plugin_customizations = []
+        self._search_query = ""
+        if self._filter_input:
+            self._filter_input.clear()
+        self._update_panels()
+        self._update_subtitle()
+        self._update_status_panel()
+        self.refresh_bindings()
+
+        if self._main_pane:
+            self._main_pane.customization = None
+
+        if self._marketplace_modal:
+            self._marketplace_modal.show()
+
+    def action_exit_preview(self) -> None:
+        """Exit plugin preview mode (visible binding for Esc in preview)."""
+        self._exit_plugin_preview()
+
+    def on_marketplace_modal_plugin_preview(
+        self, message: MarketplaceModal.PluginPreview
+    ) -> None:
+        """Handle plugin preview request from marketplace modal."""
+        self._enter_plugin_preview(message.plugin)
+
     def on_filter_input_filter_changed(
         self, message: FilterInput.FilterChanged
     ) -> None:
@@ -768,6 +913,7 @@ class LazyClaude(App):
             self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
+        self.refresh_bindings()
 
     def on_filter_input_filter_applied(
         self,
@@ -776,6 +922,7 @@ class LazyClaude(App):
         """Handle filter application (Enter key)."""
         if self._filter_input:
             self._filter_input.hide()
+        self.refresh_bindings()
 
     def on_level_selector_level_selected(
         self, message: LevelSelector.LevelSelected
@@ -842,6 +989,98 @@ class LazyClaude(App):
         message: DeleteConfirm.DeleteCancelled,  # noqa: ARG002
     ) -> None:
         """Handle delete cancellation."""
+        self._restore_focus_after_selector()
+
+    def on_marketplace_modal_plugin_toggled(
+        self, message: MarketplaceModal.PluginToggled
+    ) -> None:
+        """Handle plugin toggle/install from marketplace modal."""
+        plugin = message.plugin
+
+        if not plugin.is_installed:
+            cmd = ["claude", "plugin", "install", plugin.full_plugin_id]
+            action_msg = f"Installing {plugin.name}..."
+            success_msg = f"Installed {plugin.name}"
+        elif plugin.is_enabled:
+            cmd = ["claude", "plugin", "disable", plugin.full_plugin_id]
+            action_msg = f"Disabling {plugin.name}..."
+            success_msg = f"Disabled {plugin.name}"
+        else:
+            cmd = ["claude", "plugin", "enable", plugin.full_plugin_id]
+            action_msg = f"Enabling {plugin.name}..."
+            success_msg = f"Enabled {plugin.name}"
+
+        self.notify(action_msg, severity="information", timeout=2.0)
+        self._run_plugin_command(cmd, success_msg)
+
+    def on_marketplace_modal_plugin_uninstall(
+        self, message: MarketplaceModal.PluginUninstall
+    ) -> None:
+        """Handle plugin uninstall from marketplace modal."""
+        plugin = message.plugin
+
+        if not plugin.is_installed:
+            self.notify("Plugin not installed", severity="warning")
+            return
+
+        self.notify(
+            f"Uninstalling {plugin.name}...", severity="information", timeout=2.0
+        )
+        cmd = ["claude", "plugin", "uninstall", plugin.full_plugin_id]
+        self._run_plugin_command(cmd, f"Uninstalled {plugin.name}")
+
+    @work(thread=True)
+    def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
+        """Run a plugin command in a background worker."""
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+            self.call_from_thread(self._on_plugin_command_success, success_msg)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed: {e.stderr or str(e)}"
+            self.call_from_thread(self._on_plugin_command_error, error_msg)
+        except FileNotFoundError:
+            self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")
+
+    def _on_plugin_command_success(self, success_msg: str) -> None:
+        """Handle successful plugin command completion."""
+        self.notify(success_msg, severity="information")
+        if self._marketplace_modal:
+            self._marketplace_modal.refresh_tree()
+        self.action_refresh()
+
+    def _on_plugin_command_error(self, error_msg: str) -> None:
+        """Handle plugin command error."""
+        self.notify(error_msg, severity="error")
+        if self._marketplace_modal:
+            self._marketplace_modal.refresh_tree()
+
+    def on_marketplace_modal_open_plugin_folder(
+        self, message: MarketplaceModal.OpenPluginFolder
+    ) -> None:
+        """Handle opening plugin folder from marketplace modal."""
+        plugin = message.plugin
+
+        if not plugin.install_path or not plugin.install_path.exists():
+            self.notify("Plugin folder not found", severity="warning")
+            return
+
+        editor = os.environ.get("EDITOR", "vi")
+        subprocess.Popen([editor, str(plugin.install_path)], shell=True)
+
+    def on_marketplace_modal_marketplace_update(
+        self, message: MarketplaceModal.MarketplaceUpdate
+    ) -> None:
+        """Handle marketplace update request."""
+        marketplace = message.marketplace
+        self.notify(f"Updating {marketplace.entry.name}...", severity="information")
+        cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
+        self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
+
+    def on_marketplace_modal_modal_closed(
+        self,
+        message: MarketplaceModal.ModalClosed,  # noqa: ARG002
+    ) -> None:
+        """Handle marketplace modal close."""
         self._restore_focus_after_selector()
 
     def _restore_focus_after_selector(self) -> None:
@@ -956,6 +1195,7 @@ class LazyClaude(App):
   C              Copy path to clipboard
   r              Refresh from disk
   Ctrl+u         Open user config
+  M              Open marketplace
   ?              Toggle this help
   q              Quit
 

@@ -9,11 +9,21 @@ from lazyclaude.models.customization import (
     SlashCommandMetadata,
     SubagentMetadata,
 )
+from lazyclaude.models.marketplace import (
+    Marketplace,
+    MarketplaceEntry,
+    MarketplacePlugin,
+    MarketplaceSource,
+)
 
 __all__ = [
     "ConfigLevel",
     "Customization",
     "CustomizationType",
+    "Marketplace",
+    "MarketplaceEntry",
+    "MarketplacePlugin",
+    "MarketplaceSource",
     "MCPServerMetadata",
     "SkillMetadata",
     "SlashCommandMetadata",
