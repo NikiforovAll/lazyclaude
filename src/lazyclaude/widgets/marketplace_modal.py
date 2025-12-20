@@ -23,9 +23,10 @@ class MarketplaceModal(Widget):
         Binding("d", "uninstall_plugin", "Uninstall", show=False),
         Binding("e", "open_plugin_folder", "Open Folder", show=False),
         Binding("u", "update_marketplace", "Update", show=False),
+        Binding("p", "preview_plugin", "Preview", show=False),
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
-        Binding("enter", "select_node", "Select", show=False),
+        Binding("enter", "select_node", "Select", show=False, priority=True),
         Binding("space", "select_node", "Toggle", show=False),
         Binding("right", "expand_node", "Expand", show=False),
         Binding("l", "expand_node", "Expand", show=False),
@@ -113,6 +114,13 @@ class MarketplaceModal(Widget):
             self.marketplace = marketplace
             super().__init__()
 
+    class PluginPreview(Message):
+        """Emitted when user requests to preview a plugin."""
+
+        def __init__(self, plugin: MarketplacePlugin) -> None:
+            self.plugin = plugin
+            super().__init__()
+
     def __init__(
         self,
         name: str | None = None,
@@ -151,12 +159,13 @@ class MarketplaceModal(Widget):
             if data.is_installed:
                 action = "Enable" if not data.is_enabled else "Disable"
                 footer.update(
-                    f"[bold]i[/] {action}  [bold]d[/] Uninstall  [bold]e[/] Open  "
-                    "[bold]/[/] Search  [bold]Esc[/] Close"
+                    f"[bold]p[/] Preview  [bold]i[/] {action}  [bold]d[/] Uninstall  "
+                    "[bold]e[/] Open  [bold]/[/] Search  [bold]Esc[/] Close"
                 )
             else:
                 footer.update(
-                    "[bold]i[/] Install  [bold]/[/] Search  [bold]Esc[/] Close"
+                    "[bold]p[/] Preview  [bold]i[/] Install  "
+                    "[bold]/[/] Search  [bold]Esc[/] Close"
                 )
         elif isinstance(data, Marketplace):
             footer.update(
@@ -363,6 +372,19 @@ class MarketplaceModal(Widget):
         if isinstance(data, Marketplace):
             self.post_message(self.MarketplaceUpdate(data))
 
+    def action_preview_plugin(self) -> None:
+        """Preview the selected plugin's customizations."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, MarketplacePlugin):
+            self.post_message(self.PluginPreview(data))
+
     def action_cursor_down(self) -> None:
         """Move cursor down in tree."""
         if self._tree:
@@ -374,8 +396,14 @@ class MarketplaceModal(Widget):
             self._tree.action_cursor_up()
 
     def action_select_node(self) -> None:
-        """Toggle node expansion."""
-        if self._tree:
+        """Toggle node expansion or preview plugin."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node and isinstance(node.data, MarketplacePlugin):
+            self.post_message(self.PluginPreview(node.data))
+        else:
             self._tree.action_select_cursor()
 
     def action_expand_node(self) -> None:

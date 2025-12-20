@@ -94,6 +94,22 @@ class IConfigDiscoveryService(ABC):
         """
         ...
 
+    @abstractmethod
+    def discover_from_directory(
+        self, plugin_dir: Path, plugin_info: PluginInfo | None = None
+    ) -> list[Customization]:
+        """
+        Discover customizations from a specific directory (for plugin preview).
+
+        Args:
+            plugin_dir: The directory to scan for customizations.
+            plugin_info: Optional plugin info to attach to customizations.
+
+        Returns:
+            List of customizations found in the directory.
+        """
+        ...
+
 
 class ConfigDiscoveryService(IConfigDiscoveryService):
     """Discovers and loads all Claude Code customizations from the filesystem."""
@@ -174,6 +190,24 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         if self.project_config_path.is_dir():
             return self.project_config_path
         return self.user_config_path
+
+    def discover_from_directory(
+        self, plugin_dir: Path, plugin_info: PluginInfo | None = None
+    ) -> list[Customization]:
+        """Discover customizations from a specific directory (for plugin preview)."""
+        customizations: list[Customization] = []
+        level = ConfigLevel.PLUGIN
+
+        for config in SCAN_CONFIGS.values():
+            customizations.extend(
+                self._scanner.scan_directory(plugin_dir, config, level, plugin_info)
+            )
+
+        if plugin_info:
+            customizations.extend(self._discover_plugin_mcps(plugin_dir, plugin_info))
+            customizations.extend(self._discover_plugin_hooks(plugin_dir, plugin_info))
+
+        return self._sort_customizations(customizations)
 
     def _sort_customizations(
         self, customizations: list[Customization]

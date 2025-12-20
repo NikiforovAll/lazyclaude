@@ -25,9 +25,13 @@ class MarketplaceLoader:
         self._installed_plugin_ids: set[str] | None = None
         self._enabled_plugin_ids: set[str] | None = None
         self._install_paths: dict[str, Path] | None = None
+        self._marketplaces_cache: list[Marketplace] | None = None
 
     def load_marketplaces(self) -> list[Marketplace]:
         """Load all marketplaces from known_marketplaces.json."""
+        if self._marketplaces_cache is not None:
+            return self._marketplaces_cache
+
         marketplaces: list[Marketplace] = []
         known_file = self.user_config_path / "plugins" / "known_marketplaces.json"
 
@@ -47,6 +51,7 @@ class MarketplaceLoader:
                 marketplace = self._load_marketplace(entry)
                 marketplaces.append(marketplace)
 
+        self._marketplaces_cache = marketplaces
         return marketplaces
 
     def _parse_marketplace_entry(
@@ -172,10 +177,31 @@ class MarketplaceLoader:
             self._enabled_plugin_ids = set()
             self._install_paths = {}
 
+    def get_plugin_source_dir(self, plugin: MarketplacePlugin) -> Path | None:
+        """Get the source directory for a plugin (installed or from marketplace)."""
+        if plugin.install_path and plugin.install_path.exists():
+            return plugin.install_path
+
+        marketplace = self._find_marketplace(plugin.marketplace_name)
+        if marketplace:
+            plugin_dir = marketplace.entry.install_location / plugin.name
+            if plugin_dir.exists():
+                return plugin_dir
+        return None
+
+    def _find_marketplace(self, marketplace_name: str) -> Marketplace | None:
+        """Find a marketplace by name."""
+        marketplaces = self.load_marketplaces()
+        for marketplace in marketplaces:
+            if marketplace.entry.name == marketplace_name:
+                return marketplace
+        return None
+
     def refresh(self) -> None:
         """Clear cache to force reload."""
         self._installed_plugin_ids = None
         self._enabled_plugin_ids = None
         self._install_paths = None
+        self._marketplaces_cache = None
         if self._plugin_loader:
             self._plugin_loader._registry = None

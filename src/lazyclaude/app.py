@@ -17,7 +17,9 @@ from lazyclaude.models.customization import (
     Customization,
     CustomizationType,
     MemoryFileRef,
+    PluginInfo,
 )
+from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
@@ -51,7 +53,6 @@ class LazyClaude(App):
         Binding("C", "copy_config_path", "Copy Path"),
         Binding("tab", "focus_next_panel", "Next Panel", show=False),
         Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
-        Binding("escape", "back", "Back", show=False),
         Binding("a", "filter_all", "All"),
         Binding("u", "filter_user", "User"),
         Binding("p", "filter_project", "Project"),
@@ -70,6 +71,8 @@ class LazyClaude(App):
         Binding("6", "focus_panel_6", "Panel 6", show=False),
         Binding("ctrl+u", "open_user_config", "User Config", show=False),
         Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
+        Binding("escape", "exit_preview", "Exit Preview", show=True, priority=True),
+        Binding("escape", "back", "Back", show=False),
     ]
 
     TITLE = "LazyClaude"
@@ -121,6 +124,9 @@ class LazyClaude(App):
         self._panel_before_selector: TypePanel | None = None
         self._combined_before_selector: bool = False
         self._config_path_resolver: ConfigPathResolver | None = None
+        self._plugin_preview_mode: bool = False
+        self._previewing_plugin: MarketplacePlugin | None = None
+        self._plugin_customizations: list[Customization] = []
 
     def _fatal_error(self) -> None:
         """Print simple traceback instead of Rich's fancy one."""
@@ -189,6 +195,31 @@ class LazyClaude(App):
         parameters: tuple[object, ...],  # noqa: ARG002
     ) -> bool | None:
         """Control action availability based on current state."""
+        # exit_preview only available in preview mode
+        if action == "exit_preview":
+            return self._plugin_preview_mode
+
+        # In preview mode, hide most actions and show only relevant ones
+        if self._plugin_preview_mode:
+            preview_allowed_actions = {
+                "quit",
+                "toggle_help",
+                "search",
+                "focus_next_panel",
+                "focus_previous_panel",
+                "focus_panel_1",
+                "focus_panel_2",
+                "focus_panel_3",
+                "focus_panel_4",
+                "focus_panel_5",
+                "focus_panel_6",
+                "focus_main_pane",
+                "prev_view",
+                "next_view",
+                "exit_preview",
+            }
+            return action in preview_allowed_actions
+
         if action == "toggle_plugin_enabled":
             if not self._main_pane or not self._main_pane.customization:
                 return False
@@ -231,11 +262,19 @@ class LazyClaude(App):
 
     def _update_panels(self) -> None:
         """Update all panels with filtered customizations."""
-        filtered = self._get_filtered_customizations()
+        if self._plugin_preview_mode:
+            customizations = self._filter_service.filter(
+                self._plugin_customizations,
+                query=self._search_query,
+                level=None,
+                plugin_enabled=None,
+            )
+        else:
+            customizations = self._get_filtered_customizations()
         for panel in self._panels:
-            panel.set_customizations(filtered)
+            panel.set_customizations(customizations)
         if self._combined_panel:
-            self._combined_panel.set_customizations(filtered)
+            self._combined_panel.set_customizations(customizations)
 
     def _get_filtered_customizations(self) -> list[Customization]:
         """Get customizations filtered by current level and search query."""
@@ -260,6 +299,10 @@ class LazyClaude(App):
 
     def _update_subtitle(self) -> None:
         """Update subtitle to reflect current filter state."""
+        if self._plugin_preview_mode and self._previewing_plugin:
+            self.sub_title = f"Preview: {self._previewing_plugin.name} | Esc to exit"
+            return
+
         parts = []
         if self._level_filter == ConfigLevel.USER:
             parts.append("User Level")
@@ -520,7 +563,11 @@ class LazyClaude(App):
             self._delete_confirm.show(customization)
 
     async def action_back(self) -> None:
-        """Go back - return focus to panel from main pane, keep content visible."""
+        """Go back - exit preview mode, or return focus to panel from main pane."""
+        if self._plugin_preview_mode:
+            self._exit_plugin_preview()
+            return
+
         if self._main_pane and self._main_pane.has_focus:
             if self._last_focused_combined and self._combined_panel:
                 self._combined_panel.focus()
@@ -775,6 +822,75 @@ class LazyClaude(App):
                 )
                 self._marketplace_modal.show()
 
+    def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
+        """Enter plugin preview mode - show plugin's customizations in panels."""
+        if not self._marketplace_loader:
+            self.notify("Marketplace loader not available", severity="error")
+            return
+
+        plugin_dir = self._marketplace_loader.get_plugin_source_dir(plugin)
+        if not plugin_dir or not plugin_dir.exists():
+            self.notify("Plugin source not found", severity="warning")
+            return
+
+        plugin_info = PluginInfo(
+            plugin_id=plugin.full_plugin_id,
+            short_name=plugin.name,
+            version="preview",
+            install_path=plugin_dir,
+            is_enabled=plugin.is_enabled,
+        )
+        self._plugin_customizations = self._discovery_service.discover_from_directory(
+            plugin_dir, plugin_info
+        )
+        self._previewing_plugin = plugin
+        self._plugin_preview_mode = True
+
+        if self._marketplace_modal:
+            self._marketplace_modal.hide()
+
+        self._update_panels()
+        self._update_subtitle()
+        self.refresh_bindings()
+        if self._status_panel:
+            self._status_panel.config_path = f"Preview: {plugin.name}"
+            self._status_panel.filter_level = "Plugin"
+
+        if self._main_pane:
+            self._main_pane.customization = None
+
+        if self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.MCP)
+
+    def _exit_plugin_preview(self) -> None:
+        """Exit plugin preview mode and return to marketplace."""
+        self._plugin_preview_mode = False
+        self._previewing_plugin = None
+        self._plugin_customizations = []
+        self._search_query = ""
+        if self._filter_input:
+            self._filter_input.clear()
+        self._update_panels()
+        self._update_subtitle()
+        self._update_status_panel()
+        self.refresh_bindings()
+
+        if self._main_pane:
+            self._main_pane.customization = None
+
+        if self._marketplace_modal:
+            self._marketplace_modal.show()
+
+    def action_exit_preview(self) -> None:
+        """Exit plugin preview mode (visible binding for Esc in preview)."""
+        self._exit_plugin_preview()
+
+    def on_marketplace_modal_plugin_preview(
+        self, message: MarketplaceModal.PluginPreview
+    ) -> None:
+        """Handle plugin preview request from marketplace modal."""
+        self._enter_plugin_preview(message.plugin)
+
     def on_filter_input_filter_changed(
         self, message: FilterInput.FilterChanged
     ) -> None:
@@ -797,6 +913,7 @@ class LazyClaude(App):
             self._main_pane.customization = None
         self._update_panels()
         self._update_subtitle()
+        self.refresh_bindings()
 
     def on_filter_input_filter_applied(
         self,
@@ -805,6 +922,7 @@ class LazyClaude(App):
         """Handle filter application (Enter key)."""
         if self._filter_input:
             self._filter_input.hide()
+        self.refresh_bindings()
 
     def on_level_selector_level_selected(
         self, message: LevelSelector.LevelSelected
