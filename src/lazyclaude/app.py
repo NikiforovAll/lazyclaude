@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 
 import pyperclip
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -20,12 +21,14 @@ from lazyclaude.models.customization import (
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
+from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
+from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
@@ -35,6 +38,7 @@ class LazyClaude(App):
     """A lazygit-style TUI for visualizing Claude Code customizations."""
 
     CSS_PATH = "styles/app.tcss"
+    LAYERS = ["default", "overlay"]
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
@@ -65,6 +69,7 @@ class LazyClaude(App):
         Binding("5", "focus_panel_5", "Panel 5", show=False),
         Binding("6", "focus_panel_6", "Panel 6", show=False),
         Binding("ctrl+u", "open_user_config", "User Config", show=False),
+        Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
     ]
 
     TITLE = "LazyClaude"
@@ -107,6 +112,8 @@ class LazyClaude(App):
         self._level_selector: LevelSelector | None = None
         self._plugin_confirm: PluginConfirm | None = None
         self._delete_confirm: DeleteConfirm | None = None
+        self._marketplace_modal: MarketplaceModal | None = None
+        self._marketplace_loader: MarketplaceLoader | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
         self._last_focused_combined: bool = False
@@ -156,6 +163,9 @@ class LazyClaude(App):
         self._delete_confirm = DeleteConfirm(id="delete-confirm")
         yield self._delete_confirm
 
+        self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
+        yield self._marketplace_modal
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -166,6 +176,12 @@ class LazyClaude(App):
         self._config_path_resolver = ConfigPathResolver(
             self._discovery_service._plugin_loader,
         )
+        self._marketplace_loader = MarketplaceLoader(
+            user_config_path=self._discovery_service.user_config_path,
+            plugin_loader=self._discovery_service._plugin_loader,
+        )
+        if self._marketplace_modal:
+            self._marketplace_modal.set_loader(self._marketplace_loader)
 
     def check_action(
         self,
@@ -746,6 +762,19 @@ class LazyClaude(App):
         if self._filter_input:
             self._filter_input.show()
 
+    def action_toggle_marketplace(self) -> None:
+        """Toggle the marketplace browser modal."""
+        if self._marketplace_modal:
+            if self._marketplace_modal.is_visible:
+                self._marketplace_modal.hide()
+                self._restore_focus_after_selector()
+            else:
+                self._panel_before_selector = self._get_focused_panel()
+                self._combined_before_selector = (
+                    self._combined_panel.has_focus if self._combined_panel else False
+                )
+                self._marketplace_modal.show()
+
     def on_filter_input_filter_changed(
         self, message: FilterInput.FilterChanged
     ) -> None:
@@ -842,6 +871,98 @@ class LazyClaude(App):
         message: DeleteConfirm.DeleteCancelled,  # noqa: ARG002
     ) -> None:
         """Handle delete cancellation."""
+        self._restore_focus_after_selector()
+
+    def on_marketplace_modal_plugin_toggled(
+        self, message: MarketplaceModal.PluginToggled
+    ) -> None:
+        """Handle plugin toggle/install from marketplace modal."""
+        plugin = message.plugin
+
+        if not plugin.is_installed:
+            cmd = ["claude", "plugin", "install", plugin.full_plugin_id]
+            action_msg = f"Installing {plugin.name}..."
+            success_msg = f"Installed {plugin.name}"
+        elif plugin.is_enabled:
+            cmd = ["claude", "plugin", "disable", plugin.full_plugin_id]
+            action_msg = f"Disabling {plugin.name}..."
+            success_msg = f"Disabled {plugin.name}"
+        else:
+            cmd = ["claude", "plugin", "enable", plugin.full_plugin_id]
+            action_msg = f"Enabling {plugin.name}..."
+            success_msg = f"Enabled {plugin.name}"
+
+        self.notify(action_msg, severity="information", timeout=2.0)
+        self._run_plugin_command(cmd, success_msg)
+
+    def on_marketplace_modal_plugin_uninstall(
+        self, message: MarketplaceModal.PluginUninstall
+    ) -> None:
+        """Handle plugin uninstall from marketplace modal."""
+        plugin = message.plugin
+
+        if not plugin.is_installed:
+            self.notify("Plugin not installed", severity="warning")
+            return
+
+        self.notify(
+            f"Uninstalling {plugin.name}...", severity="information", timeout=2.0
+        )
+        cmd = ["claude", "plugin", "uninstall", plugin.full_plugin_id]
+        self._run_plugin_command(cmd, f"Uninstalled {plugin.name}")
+
+    @work(thread=True)
+    def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
+        """Run a plugin command in a background worker."""
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+            self.call_from_thread(self._on_plugin_command_success, success_msg)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed: {e.stderr or str(e)}"
+            self.call_from_thread(self._on_plugin_command_error, error_msg)
+        except FileNotFoundError:
+            self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")
+
+    def _on_plugin_command_success(self, success_msg: str) -> None:
+        """Handle successful plugin command completion."""
+        self.notify(success_msg, severity="information")
+        if self._marketplace_modal:
+            self._marketplace_modal.refresh_tree()
+        self.action_refresh()
+
+    def _on_plugin_command_error(self, error_msg: str) -> None:
+        """Handle plugin command error."""
+        self.notify(error_msg, severity="error")
+        if self._marketplace_modal:
+            self._marketplace_modal.refresh_tree()
+
+    def on_marketplace_modal_open_plugin_folder(
+        self, message: MarketplaceModal.OpenPluginFolder
+    ) -> None:
+        """Handle opening plugin folder from marketplace modal."""
+        plugin = message.plugin
+
+        if not plugin.install_path or not plugin.install_path.exists():
+            self.notify("Plugin folder not found", severity="warning")
+            return
+
+        editor = os.environ.get("EDITOR", "vi")
+        subprocess.Popen([editor, str(plugin.install_path)], shell=True)
+
+    def on_marketplace_modal_marketplace_update(
+        self, message: MarketplaceModal.MarketplaceUpdate
+    ) -> None:
+        """Handle marketplace update request."""
+        marketplace = message.marketplace
+        self.notify(f"Updating {marketplace.entry.name}...", severity="information")
+        cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
+        self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
+
+    def on_marketplace_modal_modal_closed(
+        self,
+        message: MarketplaceModal.ModalClosed,  # noqa: ARG002
+    ) -> None:
+        """Handle marketplace modal close."""
         self._restore_focus_after_selector()
 
     def _restore_focus_after_selector(self) -> None:
@@ -956,6 +1077,7 @@ class LazyClaude(App):
   C              Copy path to clipboard
   r              Refresh from disk
   Ctrl+u         Open user config
+  M              Open marketplace
   ?              Toggle this help
   q              Quit
 
