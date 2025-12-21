@@ -14,56 +14,29 @@ A lazygit-style TUI for visualizing Claude Code customizations.
 uvx lazyclaude
 ```
 
-## Key Features
+## Quick Tour
 
-### Unified View
+### First Launch
+Launch LazyClaude to explore all your Claude Code customizations in one place. Navigate with `j`/`k`, switch panels with `1-6`, and toggle views with `[`/`]`.
 
-All six customization types displayed in organized panels. Select any item to see its full content with syntax highlighting in the detail pane.
+![First Launch](docs/assets/first-launch.gif)
 
-### Configuration Level Awareness
+### Filter by Level
+Press `a`/`u`/`p`/`P` to filter customizations by configuration level (All/User/Project/Plugin).
 
-Claude Code resolves customizations from multiple levels:
+![Filter Workflow](docs/assets/demo-filter-workflow.gif)
 
-| Level | Location | Description |
-|-------|----------|-------------|
-| User | `~/.claude/` | Global configuration |
-| Project | `./.claude/` | Project-specific overrides |
-| Plugin | `~/.claude/plugins/` | Third-party extensions |
+### Browse Marketplace
+Press `M` to open the marketplace browser. Install plugins with `i`, preview content with `p`, and manage installations.
 
-LazyClaude shows each item's origin, helping you understand override behavior and avoid conflicts.
+![Marketplace Install](docs/assets/demo-marketplace-install.gif)
 
-### Quick Filtering
+### Preview Before Installing
+Press `p` in the marketplace to preview plugin content before installation. Explore what the plugin provides without committing.
 
-Press a single key to filter by configuration level:
+![Preview Plugin](docs/assets/demo-preview-plugin.gif)
 
-- `a` — Show all levels
-- `u` — User-level only
-- `p` — Project-level only
-- `P` — Plugin-level only
-
-Press `/` to search by name or plugin prefix.
-
-### Vim-Style Navigation
-
-| Key | Action |
-|-----|--------|
-| `j` / `k` | Navigate up/down |
-| `g` / `G` | Jump to top/bottom |
-| `1`-`6` | Jump to specific panel |
-| `Tab` | Switch between panels |
-| `Enter` | View item details |
-| `Esc` | Go back |
-| `e` | Open in $EDITOR |
-| `R` | Refresh from disk |
-| `?` | Show help |
-| `q` | Quit |
-
-
-`j/k` navigate | `Enter` drill down | `Esc` back | `/` search | `?` help | `q` quit
-
-
-![Demo](assets/demo.gif)
-
+📖 **[Full User Guide](docs/user-guide.md)** for detailed workflows and keyboard shortcuts.
 
 
 ## Development
@@ -82,7 +55,3 @@ uv publish
 ```
 
 See: <https://docs.astral.sh/uv/guides/package/>
-
-## License
-
-MIT

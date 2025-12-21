@@ -4,20 +4,37 @@ A keyboard-driven TUI for visualizing and managing Claude Code customizations.
 
 ## Table of Contents
 
-- [Introduction](#introduction)
-- [Getting Started](#getting-started)
-- [Understanding the Interface](#understanding-the-interface)
-  - [Customization Types](#customization-types)
-  - [Configuration Levels](#configuration-levels)
-  - [Panel Layout](#panel-layout)
-- [Core Workflows](#core-workflows)
-  - [1. Viewing and Filtering Configurations](#1-viewing-and-filtering-configurations)
-  - [2. Editing Customizations](#2-editing-customizations)
-  - [3. Managing Configurations Across Levels](#3-managing-configurations-across-levels)
-  - [4. Working with Marketplace](#4-working-with-marketplace)
-- [Keyboard Reference](#keyboard-reference)
-- [Tips and Best Practices](#tips-and-best-practices)
-- [Troubleshooting](#troubleshooting)
+- [LazyClaude User Guide](#lazyclaude-user-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Getting Started](#getting-started)
+    - [First Launch](#first-launch)
+  - [Understanding the Interface](#understanding-the-interface)
+    - [Customization Types](#customization-types)
+    - [Configuration Levels](#configuration-levels)
+    - [Panel Layout](#panel-layout)
+  - [Core Workflows](#core-workflows)
+    - [1. Viewing and Filtering Configurations](#1-viewing-and-filtering-configurations)
+    - [2. Editing Customizations](#2-editing-customizations)
+    - [3. Managing Configurations Across Levels](#3-managing-configurations-across-levels)
+      - [Copy vs Move](#copy-vs-move)
+      - [Scenario A: Customize Plugin Content](#scenario-a-customize-plugin-content)
+      - [Scenario B: Share Configuration with Team](#scenario-b-share-configuration-with-team)
+    - [4. Working with Marketplace](#4-working-with-marketplace)
+      - [Browse and Install Plugins](#browse-and-install-plugins)
+      - [Preview Plugin Content](#preview-plugin-content)
+      - [Manage Installed Plugins](#manage-installed-plugins)
+  - [Keyboard Reference](#keyboard-reference)
+    - [Global Bindings](#global-bindings)
+    - [Navigation](#navigation)
+    - [Panel Actions](#panel-actions)
+    - [Configuration Management](#configuration-management)
+    - [Filtering](#filtering)
+    - [Marketplace](#marketplace)
+  - [Tips and Best Practices](#tips-and-best-practices)
+    - [Configuration Strategy](#configuration-strategy)
+    - [Efficient Workflows](#efficient-workflows)
+    - [Keyboard Shortcuts Memorization](#keyboard-shortcuts-memorization)
 
 ## Introduction
 
@@ -59,25 +76,25 @@ When you first launch LazyClaude, you'll see:
 
 LazyClaude organizes Claude Code customizations into six types:
 
-| Type | Panel | Description |
-|------|-------|-------------|
+| Type               | Panel | Description                               |
+| ------------------ | ----- | ----------------------------------------- |
 | **Slash Commands** | `[1]` | Custom commands like `/commit`, `/review` |
-| **Subagents** | `[2]` | Specialized agents for specific tasks |
-| **Skills** | `[3]` | Reusable workflows and procedures |
-| **Memory Files** | `[4]` | Context files referenced with `@` |
-| **MCPs** | `[5]` | Model Context Protocol servers |
-| **Hooks** | `[6]` | Event-driven automations |
+| **Subagents**      | `[2]` | Specialized agents for specific tasks     |
+| **Skills**         | `[3]` | Reusable workflows and procedures         |
+| **Memory Files**   | `[4]` | Context files referenced with `@`         |
+| **MCPs**           | `[5]` | Model Context Protocol servers            |
+| **Hooks**          | `[6]` | Event-driven automations                  |
 
 ### Configuration Levels
 
 Customizations exist at different levels, allowing you to control scope and sharing:
 
-| Level | Location | Purpose | Version Control |
-|-------|----------|---------|-----------------|
-| **User** | `~/.claude/` | Personal global configurations | No |
-| **Project** | `./.claude/` | Project-specific, shared with team | Yes (git) |
-| **Project Local** | `./.claude/local/` | Project-specific, machine-local | No |
-| **Plugin** | `~/.claude/plugins/` | Installed marketplace extensions | No |
+| Level             | Location             | Purpose                            | Version Control |
+| ----------------- | -------------------- | ---------------------------------- | --------------- |
+| **User**          | `~/.claude/`         | Personal global configurations     | No              |
+| **Project**       | `./.claude/`         | Project-specific, shared with team | Yes (git)       |
+| **Project Local** | `./.claude/local/`   | Project-specific, machine-local    | No              |
+| **Plugin**        | `~/.claude/plugins/` | Installed marketplace extensions   | No              |
 
 ### Panel Layout
 
@@ -140,7 +157,6 @@ Customizations exist at different levels, allowing you to control scope and shar
 3. Make your changes and save
 4. Press `r` to refresh LazyClaude and see updates
 
-<--- DEMO PLACEHOLDER -->
 
 **Requirements:**
 - `$EDITOR` environment variable must be set (e.g., `export EDITOR=vim`)
@@ -160,10 +176,10 @@ This is one of LazyClaude's most powerful features, enabling several common scen
 
 #### Copy vs Move
 
-| Operation | Key | Behavior | Use When |
-|-----------|-----|----------|----------|
-| **Copy** | `c` | Creates duplicate at target, keeps original | Customizing plugins, sharing configs |
-| **Move** | `m` | Removes original, creates at target | Reorganizing, promoting configs |
+| Operation | Key | Behavior                                    | Use When                             |
+| --------- | --- | ------------------------------------------- | ------------------------------------ |
+| **Copy**  | `c` | Creates duplicate at target, keeps original | Customizing plugins, sharing configs |
+| **Move**  | `m` | Removes original, creates at target         | Reorganizing, promoting configs      |
 
 #### Scenario A: Customize Plugin Content
 
@@ -219,43 +235,6 @@ User → Copy → Project → Git Commit
 - Configuration is version controlled
 - Changes can be reviewed via pull requests
 
-#### Scenario C: Promote Local to Project
-
-**Goal:** Move a project-local configuration to version-controlled project level.
-
-**Steps:**
-1. Navigate to a Project Local customization
-2. Press `m` to initiate move operation
-3. Select `Project` as target level
-4. The configuration moves from `./.claude/local/` to `./.claude/`
-5. Commit to git to share with team
-
-**Example Flow:**
-```
-Project Local → Move → Project → Git Commit
-```
-
-#### Common Copy/Move Patterns
-
-| From | To | Operation | Use Case |
-|------|----|-----------|----- |
-| Plugin | User | Copy | Customize plugin content |
-| User | Project | Copy | Share personal config with team |
-| Project | User | Copy | Personalize team config |
-| Project Local | Project | Move | Promote to version control |
-| Project | Project Local | Move | Make machine-specific |
-| User | User | - | N/A (same level) |
-
-**Level Selection:**
-```
-┌─────────────────────────────────┐
-│ Select target level             │
-├─────────────────────────────────┤
-│ > User (~/.claude/)             │
-│   Project (./.claude/)          │
-│   Project Local (./.claude/local/) │
-└─────────────────────────────────┘
-```
 
 ### 4. Working with Marketplace
 
@@ -274,7 +253,7 @@ Project Local → Move → Project → Git Commit
 8. Press `Esc` to close marketplace
 9. Press `P` to filter to Plugin level and explore
 
-<--- DEMO PLACEHOLDER -->
+![Marketplace Install Demo](./assets/demo-marketplace-install.gif)
 
 **Marketplace Status Icons:**
 - `[I]` (green) - Installed and enabled
@@ -301,7 +280,7 @@ Project Local → Move → Project → Git Commit
 7. Press `[` / `]` to view content and metadata
 8. Press `Esc` to exit preview mode and return to normal view
 
-<--- DEMO PLACEHOLDER -->
+![Preview Plugin Demo](./assets/demo-preview-plugin.gif)
 
 **Preview Mode Features:**
 - View all customizations included in a plugin
@@ -326,8 +305,6 @@ Project Local → Move → Project → Git Commit
    - `e` - Open plugin folder
 4. Press `Esc` to close marketplace
 
-<--- DEMO PLACEHOLDER -->
-
 **Plugin States:**
 - **Enabled** `[I]` - Active and available in Claude Code
 - **Disabled** `[D]` - Installed but not loaded
@@ -337,65 +314,65 @@ Project Local → Move → Project → Git Commit
 
 ### Global Bindings
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `q` | Quit | Exit LazyClaude |
-| `?` | Help | Show help screen |
-| `r` | Refresh | Reload configurations |
-| `/` | Search | Search/filter current view |
-| `Esc` | Back | Return to previous context |
+| Key   | Action  | Description                |
+| ----- | ------- | -------------------------- |
+| `q`   | Quit    | Exit LazyClaude            |
+| `?`   | Help    | Show help screen           |
+| `r`   | Refresh | Reload configurations      |
+| `/`   | Search  | Search/filter current view |
+| `Esc` | Back    | Return to previous context |
 
 ### Navigation
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `j` / `↓` | Down | Move selection down |
-| `k` / `↑` | Up | Move selection up |
-| `g` | Top | Jump to first item |
-| `G` | Bottom | Jump to last item |
-| `d` | Page Down | Scroll detail pane down |
-| `u` | Page Up | Scroll detail pane up |
-| `Tab` | Next Panel | Switch to next panel |
-| `0-6` | Focus Panel | Jump directly to panel |
+| Key       | Action      | Description             |
+| --------- | ----------- | ----------------------- |
+| `j` / `↓` | Down        | Move selection down     |
+| `k` / `↑` | Up          | Move selection up       |
+| `g`       | Top         | Jump to first item      |
+| `G`       | Bottom      | Jump to last item       |
+| `d`       | Page Down   | Scroll detail pane down |
+| `u`       | Page Up     | Scroll detail pane up   |
+| `Tab`     | Next Panel  | Switch to next panel    |
+| `0-6`     | Focus Panel | Jump directly to panel  |
 
 ### Panel Actions
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `[` | Content View | Show content |
-| `]` | Metadata View | Show metadata |
-| `Enter` | Drill Down | Expand tree or open item |
+| Key     | Action        | Description              |
+| ------- | ------------- | ------------------------ |
+| `[`     | Content View  | Show content             |
+| `]`     | Metadata View | Show metadata            |
+| `Enter` | Drill Down    | Expand tree or open item |
 
 ### Configuration Management
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `e` | Edit | Open in `$EDITOR` |
-| `c` | Copy | Copy to another level |
-| `m` | Move | Move to another level |
-| `C` | Copy Path | Copy file path to clipboard |
-| `Ctrl+u` | User Config | Open `~/.claude/` |
+| Key      | Action      | Description                 |
+| -------- | ----------- | --------------------------- |
+| `e`      | Edit        | Open in `$EDITOR`           |
+| `c`      | Copy        | Copy to another level       |
+| `m`      | Move        | Move to another level       |
+| `C`      | Copy Path   | Copy file path to clipboard |
+| `Ctrl+u` | User Config | Open `~/.claude/`           |
 
 ### Filtering
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `a` | All | Show all levels |
-| `u` | User | Show only user level |
-| `p` | Project | Show only project level |
-| `P` | Plugin | Show only plugin level |
+| Key | Action          | Description                |
+| --- | --------------- | -------------------------- |
+| `a` | All             | Show all levels            |
+| `u` | User            | Show only user level       |
+| `p` | Project         | Show only project level    |
+| `P` | Plugin          | Show only plugin level     |
 | `D` | Toggle Disabled | Show/hide disabled plugins |
 
 ### Marketplace
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `M` | Open Marketplace | Browse plugins |
-| `i` | Install/Enable | Install or enable plugin |
-| `d` | Uninstall | Remove plugin |
-| `e` | Open Folder | Open plugin folder |
-| `p` | Preview | Preview plugin content |
-| `h` / `l` | Collapse/Expand | Tree navigation |
+| Key       | Action           | Description              |
+| --------- | ---------------- | ------------------------ |
+| `M`       | Open Marketplace | Browse plugins           |
+| `i`       | Install/Enable   | Install or enable plugin |
+| `d`       | Uninstall        | Remove plugin            |
+| `e`       | Open Folder      | Open plugin folder       |
+| `p`       | Preview          | Preview plugin content   |
+| `h` / `l` | Collapse/Expand  | Tree navigation          |
 
 ## Tips and Best Practices
 
@@ -404,7 +381,6 @@ Project Local → Move → Project → Git Commit
 **User Level** (`~/.claude/`)
 - Personal preferences and workflows
 - Custom commands for your coding style
-- Private configurations and credentials
 - Experiments and prototypes
 
 **Project Level** (`./.claude/`)
@@ -414,7 +390,6 @@ Project Local → Move → Project → Git Commit
 - Version-controlled configurations
 
 **Project Local** (`./.claude/local/`)
-- Machine-specific paths
 - Local development overrides
 - Temporary experiments
 - Not version controlled
@@ -452,15 +427,6 @@ Explore in panels
 [Esc] → [M] → [i]nstall if satisfied
 ```
 
-### Marketplace Best Practices
-
-1. **Explore First** - Use `M` to browse available plugins
-2. **Preview Before Install** - Use `p` to examine plugin content
-3. **Install Selectively** - Only install plugins you'll actively use
-4. **Customize via Copy** - Copy plugin configs to user level for modifications
-5. **Keep Organized** - Periodically review installed plugins with `M`
-6. **Check Updates** - Keep marketplace plugins updated
-
 ### Keyboard Shortcuts Memorization
 
 **By Frequency:**
@@ -476,83 +442,6 @@ Explore in panels
 - **Viewing**: `[`, `]`, `a`, `u`, `p`, `P`, `D`
 - **Actions**: `e`, `c`, `m`, `C`
 - **Global**: `q`, `?`, `r`, `/`, `Esc`, `M`
-
-## Troubleshooting
-
-### Configuration Not Appearing
-
-**Problem:** A configuration file exists but doesn't show in LazyClaude.
-
-**Solutions:**
-- Press `r` to refresh after external changes
-- Check filter: Press `a` to show All levels
-- Verify file location matches expected level
-- Check file has correct frontmatter format
-
-### Edit Command Not Working
-
-**Problem:** Pressing `e` does nothing or shows error.
-
-**Solutions:**
-- Ensure `$EDITOR` environment variable is set:
-  ```bash
-  export EDITOR=vim        # or code, nano, emacs, etc.
-  ```
-- Check write permissions on the file
-- Verify the file path exists
-
-### Plugin Installation Issues
-
-**Problem:** Plugin installation fails or hangs.
-
-**Solutions:**
-- Check network connectivity
-- Verify marketplace URL in `~/.claude/plugins/known_marketplaces.json`
-- Check terminal output for error messages
-- Try uninstalling and reinstalling: `M` → `d` → `i`
-
-### Copy/Move Operations Failing
-
-**Problem:** Copy or move operation fails with error.
-
-**Solutions:**
-- Ensure target directory exists (e.g., `./.claude/` for project level)
-- Check file permissions
-- Verify you're not overwriting existing files with same name
-- Create target directory if needed:
-  ```bash
-  mkdir -p .claude
-  ```
-
-### Marketplace Not Loading
-
-**Problem:** Marketplace is empty or shows errors.
-
-**Solutions:**
-- Check `~/.claude/plugins/known_marketplaces.json` exists
-- Verify marketplace registry format
-- Check network access to marketplace repositories
-- Refresh with `r` after fixing marketplace configuration
-
-### Preview Mode Issues
-
-**Problem:** Preview mode shows empty or incorrect content.
-
-**Solutions:**
-- Ensure you're in preview mode (check status bar)
-- Press `Esc` to exit preview and try again
-- Refresh marketplace data with `r`
-- Check plugin has valid customizations
-
----
-
-## Additional Resources
-
-- [CLAUDE.md](../CLAUDE.md) - Project overview and development guide
-- [docs/constitution.md](./constitution.md) - Design principles
-- [Claude Code Documentation](https://docs.claude.ai) - Official Claude Code docs
-- [GitHub Repository](https://github.com/NikiforovAll/lazyclaude) - Source code
-- [GitHub Issues](https://github.com/NikiforovAll/lazyclaude/issues) - Report bugs or request features
 
 ---
 
