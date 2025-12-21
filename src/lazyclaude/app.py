@@ -853,11 +853,34 @@ class LazyClaude(App):
         self._update_subtitle()
         self.refresh_bindings()
         if self._status_panel:
-            self._status_panel.config_path = f"Preview: {plugin.name}"
+            if plugin.is_installed:
+                resolved_version = plugin_dir.name
+            else:
+                resolved_version = plugin.extra_metadata.get("version", "dev")
+            self._status_panel.config_path = (
+                f"Preview: {plugin.name} [dim]({resolved_version})[/]"
+            )
             self._status_panel.filter_level = "Plugin"
 
         if self._main_pane:
-            self._main_pane.customization = None
+            readme_path = plugin_dir / "README.md"
+            if readme_path.is_file():
+                try:
+                    readme_content = readme_path.read_text(encoding="utf-8")
+                    readme_customization = Customization(
+                        name="README.md",
+                        type=CustomizationType.MEMORY_FILE,
+                        level=ConfigLevel.PLUGIN,
+                        path=readme_path,
+                        description=f"Plugin documentation for {plugin.name}",
+                        content=readme_content,
+                        plugin_info=plugin_info,
+                    )
+                    self._main_pane.customization = readme_customization
+                except OSError:
+                    self._main_pane.customization = None
+            else:
+                self._main_pane.customization = None
 
         if self._combined_panel:
             self._combined_panel.switch_to_type(CustomizationType.MCP)
