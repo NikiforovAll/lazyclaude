@@ -853,7 +853,13 @@ class LazyClaude(App):
         self._update_subtitle()
         self.refresh_bindings()
         if self._status_panel:
-            self._status_panel.config_path = f"Preview: {plugin.name}"
+            if plugin.is_installed:
+                resolved_version = plugin_dir.name
+            else:
+                resolved_version = plugin.extra_metadata.get("version", "dev")
+            self._status_panel.config_path = (
+                f"Preview: {plugin.name} [dim]({resolved_version})[/]"
+            )
             self._status_panel.filter_level = "Plugin"
 
         if self._main_pane:
