@@ -179,15 +179,38 @@ class MarketplaceLoader:
 
     def get_plugin_source_dir(self, plugin: MarketplacePlugin) -> Path | None:
         """Get the source directory for a plugin (installed or from marketplace)."""
-        if plugin.install_path and plugin.install_path.exists():
-            return plugin.install_path
+        if plugin.install_path:
+            if plugin.install_path.exists():
+                return plugin.install_path
+            if plugin.install_path.parent.exists():
+                latest = self._find_latest_version_dir(plugin.install_path.parent)
+                if latest and latest.exists():
+                    return latest
 
         marketplace = self._find_marketplace(plugin.marketplace_name)
         if marketplace:
-            plugin_dir = marketplace.entry.install_location / plugin.name
+            plugin_dir = (marketplace.entry.install_location / plugin.source).resolve()
             if plugin_dir.exists():
                 return plugin_dir
         return None
+
+    def _find_latest_version_dir(self, parent_dir: Path) -> Path | None:
+        """Find the latest version directory in a plugin parent directory."""
+        try:
+            subdirs = [d for d in parent_dir.iterdir() if d.is_dir()]
+            if subdirs:
+                return max(subdirs, key=lambda d: self._parse_version(d.name))
+        except OSError:
+            pass
+        return None
+
+    @staticmethod
+    def _parse_version(version_str: str) -> tuple[int, ...] | tuple[str]:
+        """Parse version string into comparable tuple."""
+        try:
+            return tuple(int(part) for part in version_str.split("."))
+        except ValueError:
+            return (version_str,)
 
     def _find_marketplace(self, marketplace_name: str) -> Marketplace | None:
         """Find a marketplace by name."""
