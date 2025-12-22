@@ -36,6 +36,7 @@ class MarketplacePlugin:
     is_installed: bool = False
     is_enabled: bool = True
     install_path: Path | None = None
+    installed_version: str | None = None
     extra_metadata: dict[str, Any] = field(default_factory=dict)
 
 

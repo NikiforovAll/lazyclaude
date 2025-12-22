@@ -266,6 +266,31 @@ class MarketplaceModal(Widget):
 
         return filtered
 
+    @staticmethod
+    def _is_semver(version: str | None) -> bool:
+        """Check if version string is semver (x.y.z format)."""
+        if not version:
+            return False
+        try:
+            parts = version.split(".")
+            return len(parts) >= 2 and all(part.isdigit() for part in parts)
+        except (ValueError, AttributeError):
+            return False
+
+    @staticmethod
+    def _parse_version(version_str: str) -> tuple[int, ...]:
+        """Parse version string into comparable tuple of integers."""
+        return tuple(int(part) for part in version_str.split("."))
+
+    def _has_update(self, installed: str, available: str) -> bool:
+        """Check if available version is newer than installed."""
+        if not self._is_semver(installed) or not self._is_semver(available):
+            return False
+        try:
+            return self._parse_version(available) > self._parse_version(installed)
+        except ValueError:
+            return False
+
     def _render_marketplace_label(self, marketplace: Marketplace) -> str:
         """Render a marketplace node label."""
         count = len(marketplace.plugins)
@@ -284,11 +309,24 @@ class MarketplaceModal(Widget):
         else:
             status_icon = "[ ]"
 
-        desc = f" - {plugin.description}" if plugin.description else ""
-        if len(desc) > 90:
-            desc = desc[:87] + "..."
+        version_display = ""
+        if plugin.is_installed and plugin.installed_version:
+            installed_ver = plugin.installed_version
+            available_ver = plugin.extra_metadata.get("version")
 
-        return f"{status_icon} {plugin.name}{desc}"
+            if available_ver and self._has_update(installed_ver, available_ver):
+                version_display = (
+                    f" [dim]({installed_ver} → {available_ver})[/] [cyan]↑[/]"
+                )
+            else:
+                version_display = f" [dim]({installed_ver})[/]"
+
+        desc = f" - {plugin.description}" if plugin.description else ""
+        max_desc_len = 80
+        if len(desc) > max_desc_len:
+            desc = desc[: max_desc_len - 3] + "..."
+
+        return f"{status_icon} {plugin.name}{version_display}{desc}"
 
     def action_close_or_cancel(self) -> None:
         """Close filter input or modal."""
