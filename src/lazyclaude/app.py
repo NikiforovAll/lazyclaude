@@ -1099,6 +1099,15 @@ class LazyClaude(App):
         cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
         self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
 
+    def on_marketplace_modal_plugin_update(
+        self, message: MarketplaceModal.PluginUpdate
+    ) -> None:
+        """Handle plugin update request."""
+        plugin = message.plugin
+        self.notify(f"Updating {plugin.name}...", severity="information")
+        cmd = ["claude", "plugin", "update", plugin.full_plugin_id]
+        self._run_plugin_command(cmd, f"Updated {plugin.name}")
+
     def on_marketplace_modal_modal_closed(
         self,
         message: MarketplaceModal.ModalClosed,  # noqa: ARG002
