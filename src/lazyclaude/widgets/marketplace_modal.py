@@ -26,8 +26,7 @@ class MarketplaceModal(Widget):
         Binding("p", "preview_plugin", "Preview", show=False),
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
-        Binding("enter", "select_node", "Select", show=False, priority=True),
-        Binding("space", "select_node", "Toggle", show=False),
+        Binding("space", "toggle_node", "Toggle", show=False),
         Binding("right", "expand_node", "Expand", show=False),
         Binding("l", "expand_node", "Expand", show=False),
         Binding("left", "collapse_node", "Collapse", show=False),
@@ -169,7 +168,7 @@ class MarketplaceModal(Widget):
                 )
         elif isinstance(data, Marketplace):
             footer.update(
-                "[bold]Enter[/] Expand  [bold]u[/] Update  "
+                "[bold]Space[/] Toggle  [bold]u[/] Update  "
                 "[bold]/[/] Search  [bold]Esc[/] Close"
             )
         else:
@@ -179,21 +178,23 @@ class MarketplaceModal(Widget):
         """Set the marketplace loader."""
         self._loader = loader
 
-    def show(self) -> None:
+    def show(self, preserve_state: bool = False) -> None:
         """Show the modal and load marketplace data."""
-        self._load_data()
-        self._build_tree()
+        if not preserve_state:
+            self._load_data()
+            self._build_tree()
         self.add_class("visible")
         if self._tree:
             self._tree.focus()
 
-    def hide(self) -> None:
+    def hide(self, preserve_state: bool = False) -> None:
         """Hide the modal."""
         self.remove_class("visible")
-        self._filter_query = ""
-        if self._filter_input:
-            self._filter_input.clear()
-            self._filter_input.hide()
+        if not preserve_state:
+            self._filter_query = ""
+            if self._filter_input:
+                self._filter_input.clear()
+                self._filter_input.hide()
 
     def _load_data(self) -> None:
         """Load marketplace data from the loader."""
@@ -395,15 +396,9 @@ class MarketplaceModal(Widget):
         if self._tree:
             self._tree.action_cursor_up()
 
-    def action_select_node(self) -> None:
-        """Toggle node expansion or preview plugin."""
-        if not self._tree:
-            return
-
-        node = self._tree.cursor_node
-        if node and isinstance(node.data, MarketplacePlugin):
-            self.post_message(self.PluginPreview(node.data))
-        else:
+    def action_toggle_node(self) -> None:
+        """Toggle node expansion."""
+        if self._tree:
             self._tree.action_select_cursor()
 
     def action_expand_node(self) -> None:
