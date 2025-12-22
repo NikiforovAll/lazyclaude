@@ -149,3 +149,52 @@ def test_is_ignored_relative_path_handling(tmp_path: Path) -> None:
 
     assert filter_service.is_ignored(log_in_src)
     assert not filter_service.is_ignored(log_in_root)
+
+
+def test_walk_filtered_prunes_gitignored_directories(tmp_path: Path) -> None:
+    """Test that directories matching gitignore patterns are pruned during traversal."""
+    gitignore_path = tmp_path / ".gitignore"
+    gitignore_path.write_text("experiments/\ndrafts/\n")
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.md").write_text("production")
+
+    (tmp_path / "experiments").mkdir()
+    (tmp_path / "experiments" / "test1.md").write_text("experiment")
+    (tmp_path / "experiments" / "nested").mkdir()
+    (tmp_path / "experiments" / "nested" / "test2.md").write_text("experiment")
+
+    (tmp_path / "drafts").mkdir()
+    (tmp_path / "drafts" / "draft.md").write_text("draft")
+
+    filter_service = GitignoreFilter(project_root=tmp_path)
+    results = list(filter_service.walk_filtered(tmp_path, "*.md"))
+
+    assert len(results) == 1
+    assert results[0] == tmp_path / "src" / "main.md"
+
+
+def test_walk_filtered_prunes_nested_gitignored_directories(tmp_path: Path) -> None:
+    """Test that nested directories matching gitignore are pruned early."""
+    gitignore_path = tmp_path / ".gitignore"
+    gitignore_path.write_text("**/temp/\n")
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.md").write_text("production")
+
+    (tmp_path / "src" / "temp").mkdir()
+    (tmp_path / "src" / "temp" / "test.md").write_text("temp")
+    (tmp_path / "src" / "temp" / "nested").mkdir()
+    (tmp_path / "src" / "temp" / "nested" / "deep.md").write_text("temp")
+
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "utils.md").write_text("production")
+    (tmp_path / "lib" / "temp").mkdir()
+    (tmp_path / "lib" / "temp" / "test.md").write_text("temp")
+
+    filter_service = GitignoreFilter(project_root=tmp_path)
+    results = sorted(filter_service.walk_filtered(tmp_path, "*.md"))
+
+    assert len(results) == 2
+    assert results[0] == tmp_path / "lib" / "utils.md"
+    assert results[1] == tmp_path / "src" / "main.md"

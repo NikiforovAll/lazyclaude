@@ -108,10 +108,31 @@ class GitignoreFilter:
 
         return self._spec.match_file(str(rel_path))
 
+    def is_dir_ignored(self, dir_path: Path) -> bool:
+        """Check if directory path matches gitignore patterns."""
+        if not self._spec:
+            return False
+
+        if not self._project_root:
+            rel_path = dir_path
+        else:
+            try:
+                rel_path = dir_path.relative_to(self._project_root)
+            except ValueError:
+                rel_path = dir_path
+
+        dir_str = str(rel_path) + "/"
+        return self._spec.match_file(dir_str)
+
     def walk_filtered(self, root: Path, pattern: str) -> Iterator[Path]:
         """Walk directory tree with pruning, yielding paths matching pattern."""
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if not self.should_skip_dir(d)]
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if not self.should_skip_dir(d)
+                and not self.is_dir_ignored(Path(dirpath) / d)
+            ]
 
             for filename in filenames:
                 if fnmatch.fnmatch(filename, pattern):

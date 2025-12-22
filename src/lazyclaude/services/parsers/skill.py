@@ -1,6 +1,7 @@
 """Parser for skill customizations."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from lazyclaude.models.customization import (
     ConfigLevel,
@@ -11,9 +12,14 @@ from lazyclaude.models.customization import (
 )
 from lazyclaude.services.parsers import ICustomizationParser, parse_frontmatter
 
+if TYPE_CHECKING:
+    from lazyclaude.services.gitignore_filter import GitignoreFilter
+
 
 def _read_skill_files(
-    directory: Path, exclude: set[str] | None = None
+    directory: Path,
+    exclude: set[str] | None = None,
+    gitignore_filter: "GitignoreFilter | None" = None,
 ) -> list[SkillFile]:
     """Recursively read all files in a skill directory."""
     if exclude is None:
@@ -32,7 +38,13 @@ def _read_skill_files(
             continue
 
         if entry.is_dir():
-            children = _read_skill_files(entry)
+            if gitignore_filter and (
+                gitignore_filter.should_skip_dir(entry.name)
+                or gitignore_filter.is_dir_ignored(entry)
+            ):
+                continue
+
+            children = _read_skill_files(entry, exclude, gitignore_filter)
             files.append(
                 SkillFile(
                     name=entry.name,
@@ -64,14 +76,20 @@ class SkillParser(ICustomizationParser):
     File pattern: skills/*/SKILL.md
     """
 
-    def __init__(self, skills_dir: Path) -> None:
+    def __init__(
+        self,
+        skills_dir: Path,
+        gitignore_filter: "GitignoreFilter | None" = None,
+    ) -> None:
         """
         Initialize with the skills directory path.
 
         Args:
             skills_dir: Path to the skills directory (e.g., ~/.claude/skills)
+            gitignore_filter: Optional filter to skip gitignored directories
         """
         self.skills_dir = skills_dir
+        self._filter = gitignore_filter
 
     def can_parse(self, path: Path) -> bool:
         """Check if path is a SKILL.md file in a skill subdirectory."""
@@ -105,7 +123,9 @@ class SkillParser(ICustomizationParser):
             else:
                 tags = [t.strip() for t in str(tags_value).split(",") if t.strip()]
 
-        skill_files = _read_skill_files(skill_dir, exclude={"SKILL.md"})
+        skill_files = _read_skill_files(
+            skill_dir, exclude={"SKILL.md"}, gitignore_filter=self._filter
+        )
 
         metadata = SkillMetadata(
             tags=tags,
