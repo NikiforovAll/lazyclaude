@@ -847,7 +847,7 @@ class LazyClaude(App):
         self._plugin_preview_mode = True
 
         if self._marketplace_modal:
-            self._marketplace_modal.hide()
+            self._marketplace_modal.hide(preserve_state=True)
 
         self._update_panels()
         self._update_subtitle()
@@ -902,7 +902,7 @@ class LazyClaude(App):
             self._main_pane.customization = None
 
         if self._marketplace_modal:
-            self._marketplace_modal.show()
+            self._marketplace_modal.show(preserve_state=True)
 
     def action_exit_preview(self) -> None:
         """Exit plugin preview mode (visible binding for Esc in preview)."""
