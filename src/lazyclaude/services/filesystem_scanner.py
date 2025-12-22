@@ -4,9 +4,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from lazyclaude.models.customization import ConfigLevel, Customization, PluginInfo
+
+if TYPE_CHECKING:
+    from lazyclaude.services.gitignore_filter import GitignoreFilter
 
 
 class GlobStrategy(Enum):
@@ -29,6 +32,9 @@ class ScanConfig:
 
 class FilesystemScanner:
     """Scans directories for customization files using configurable patterns."""
+
+    def __init__(self, gitignore_filter: "GitignoreFilter | None" = None) -> None:
+        self._filter = gitignore_filter
 
     def scan_directory(
         self,
@@ -69,13 +75,21 @@ class FilesystemScanner:
     def _get_files(self, target_dir: Path, config: ScanConfig) -> list[Path]:
         """Get files based on scan strategy."""
         if config.strategy == GlobStrategy.RGLOB:
+            if self._filter:
+                return list(self._filter.walk_filtered(target_dir, config.pattern))
             return list(target_dir.rglob(config.pattern))
         elif config.strategy == GlobStrategy.GLOB:
             return list(target_dir.glob(config.pattern))
         elif config.strategy == GlobStrategy.SUBDIR:
+            subdirs = [
+                subdir
+                for subdir in target_dir.iterdir()
+                if subdir.is_dir()
+                and (not self._filter or not self._filter.should_skip_dir(subdir.name))
+            ]
             return [
                 subdir / config.pattern
-                for subdir in target_dir.iterdir()
-                if subdir.is_dir() and (subdir / config.pattern).is_file()
+                for subdir in subdirs
+                if (subdir / config.pattern).is_file()
             ]
         return []

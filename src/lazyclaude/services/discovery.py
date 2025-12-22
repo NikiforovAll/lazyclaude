@@ -15,6 +15,7 @@ from lazyclaude.services.filesystem_scanner import (
     GlobStrategy,
     ScanConfig,
 )
+from lazyclaude.services.gitignore_filter import GitignoreFilter
 from lazyclaude.services.parsers.hook import HookParser
 from lazyclaude.services.parsers.mcp import MCPParser
 from lazyclaude.services.parsers.memory_file import MemoryFileParser
@@ -134,7 +135,8 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         )
         self.project_root = self.project_config_path.parent
 
-        self._scanner = FilesystemScanner()
+        self._gitignore_filter = GitignoreFilter(project_root=self.project_root)
+        self._scanner = FilesystemScanner(gitignore_filter=self._gitignore_filter)
         self._plugin_loader = PluginLoader(
             self.user_config_path,
             project_config_path=self.project_config_path,
@@ -198,9 +200,12 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         customizations: list[Customization] = []
         level = ConfigLevel.PLUGIN
 
+        plugin_filter = GitignoreFilter(project_root=plugin_dir)
+        plugin_scanner = FilesystemScanner(gitignore_filter=plugin_filter)
+
         for config in SCAN_CONFIGS.values():
             customizations.extend(
-                self._scanner.scan_directory(plugin_dir, config, level, plugin_info)
+                plugin_scanner.scan_directory(plugin_dir, config, level, plugin_info)
             )
 
         if plugin_info:
@@ -254,7 +259,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
                 seen_paths.add(resolved)
                 customizations.append(parser.parse(memory_file, ConfigLevel.PROJECT))
 
-        for claude_md in self.project_root.rglob("CLAUDE.md"):
+        for claude_md in self._gitignore_filter.walk_filtered(
+            self.project_root, "CLAUDE.md"
+        ):
             resolved = claude_md.resolve()
             if resolved not in seen_paths:
                 seen_paths.add(resolved)
@@ -288,7 +295,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         user_rules_dir = self.user_config_path / "rules"
         if user_rules_dir.is_dir():
-            for rule_file in user_rules_dir.rglob("*.md"):
+            for rule_file in self._gitignore_filter.walk_filtered(
+                user_rules_dir, "*.md"
+            ):
                 if not rule_file.is_file():
                     continue
                 resolved = rule_file.resolve()
@@ -302,7 +311,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         project_rules_dir = self.project_config_path / "rules"
         if project_rules_dir.is_dir():
-            for rule_file in project_rules_dir.rglob("*.md"):
+            for rule_file in self._gitignore_filter.walk_filtered(
+                project_rules_dir, "*.md"
+            ):
                 if not rule_file.is_file():
                     continue
                 resolved = rule_file.resolve()

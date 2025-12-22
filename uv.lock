@@ -72,6 +72,7 @@ wheels = [
 name = "lazyclaude"
 source = { editable = "." }
 dependencies = [
+    { name = "pathspec" },
     { name = "pyperclip" },
     { name = "pyyaml" },
     { name = "rich" },
@@ -102,6 +103,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
+    { name = "pathspec", specifier = ">=0.12.0" },
     { name = "pyperclip", specifier = ">=1.11.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
