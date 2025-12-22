@@ -48,12 +48,20 @@ class MCPParser(ICustomizationParser):
                 )
             ]
 
-        mcp_servers = data.get("mcpServers", {})
+        # .claude.json requires wrapped {"mcpServers": {...}} format
+        # .mcp.json and plugin configs support both wrapped {"mcpServers": {...}} and unwrapped {...} formats
+        if path.name == ".claude.json":
+            mcp_servers = data.get("mcpServers", {})
+        else:
+            mcp_servers = data.get("mcpServers", data)
+
         if not mcp_servers:
             return []
 
         customizations = []
         for server_name, server_config in mcp_servers.items():
+            if not isinstance(server_config, dict):
+                continue
             customizations.append(
                 self.parse_server_config(server_name, server_config, path, level)
             )

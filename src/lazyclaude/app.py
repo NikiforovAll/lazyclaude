@@ -841,7 +841,7 @@ class LazyClaude(App):
             is_enabled=plugin.is_enabled,
         )
         self._plugin_customizations = self._discovery_service.discover_from_directory(
-            plugin_dir, plugin_info
+            plugin_dir, plugin_info, marketplace_plugin=plugin
         )
         self._previewing_plugin = plugin
         self._plugin_preview_mode = True
