@@ -120,6 +120,13 @@ class MarketplaceModal(Widget):
             self.plugin = plugin
             super().__init__()
 
+    class PluginUpdate(Message):
+        """Emitted when user requests to update a plugin."""
+
+        def __init__(self, plugin: MarketplacePlugin) -> None:
+            self.plugin = plugin
+            super().__init__()
+
     def __init__(
         self,
         name: str | None = None,
@@ -158,8 +165,8 @@ class MarketplaceModal(Widget):
             if data.is_installed:
                 action = "Enable" if not data.is_enabled else "Disable"
                 footer.update(
-                    f"[bold]p[/] Preview  [bold]i[/] {action}  [bold]d[/] Uninstall  "
-                    "[bold]e[/] Open  [bold]/[/] Search  [bold]Esc[/] Close"
+                    f"[bold]p[/] Preview  [bold]i[/] {action}  [bold]u[/] Update  "
+                    "[bold]d[/] Uninstall  [bold]e[/] Open  [bold]/[/] Search  [bold]Esc[/] Close"
                 )
             else:
                 footer.update(
@@ -361,7 +368,7 @@ class MarketplaceModal(Widget):
             self.post_message(self.OpenPluginFolder(data))
 
     def action_update_marketplace(self) -> None:
-        """Update the selected marketplace."""
+        """Update the selected marketplace or plugin."""
         if not self._tree:
             return
 
@@ -372,6 +379,8 @@ class MarketplaceModal(Widget):
         data = node.data
         if isinstance(data, Marketplace):
             self.post_message(self.MarketplaceUpdate(data))
+        elif isinstance(data, MarketplacePlugin) and data.is_installed:
+            self.post_message(self.PluginUpdate(data))
 
     def action_preview_plugin(self) -> None:
         """Preview the selected plugin's customizations."""
