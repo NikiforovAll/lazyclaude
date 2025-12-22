@@ -154,3 +154,39 @@ class TestSkillFileDiscovery:
         tags = full_skill.metadata.get("tags", [])
         assert "testing" in tags
         assert "fixtures" in tags
+
+    def test_skill_files_exclude_node_modules(
+        self, fs, user_config_path: Path, fake_project_root: Path
+    ) -> None:
+        """Verify that node_modules and other ignored directories are excluded from skill file trees."""
+        skill_dir = user_config_path / "skills" / "with-deps"
+        skill_md = skill_dir / "SKILL.md"
+        fs.create_file(
+            skill_md,
+            contents="---\nname: with-deps\ndescription: Skill with dependencies\n---\nContent",
+        )
+
+        (skill_dir / "src").mkdir(parents=True, exist_ok=True)
+        fs.create_file(skill_dir / "src" / "main.py", contents="print('hello')")
+
+        (skill_dir / "node_modules" / "package").mkdir(parents=True, exist_ok=True)
+        fs.create_file(
+            skill_dir / "node_modules" / "package" / "index.js",
+            contents="module.exports = {}",
+        )
+        fs.create_file(skill_dir / "node_modules" / "package.json", contents="{}")
+
+        service = ConfigDiscoveryService(
+            user_config_path=user_config_path,
+            project_config_path=fake_project_root / ".claude",
+        )
+
+        skills = service.discover_by_type(CustomizationType.SKILL)
+        with_deps = next((s for s in skills if s.name == "with-deps"), None)
+        assert with_deps is not None
+
+        files: list[SkillFile] = with_deps.metadata.get("files", [])
+        file_names = [f.name for f in files]
+
+        assert "src" in file_names
+        assert "node_modules" not in file_names

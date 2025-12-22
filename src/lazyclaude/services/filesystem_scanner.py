@@ -4,9 +4,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from lazyclaude.models.customization import ConfigLevel, Customization, PluginInfo
+
+if TYPE_CHECKING:
+    from lazyclaude.services.gitignore_filter import GitignoreFilter
 
 
 class GlobStrategy(Enum):
@@ -29,6 +32,9 @@ class ScanConfig:
 
 class FilesystemScanner:
     """Scans directories for customization files using configurable patterns."""
+
+    def __init__(self, gitignore_filter: "GitignoreFilter | None" = None) -> None:
+        self._filter = gitignore_filter
 
     def scan_directory(
         self,
@@ -55,7 +61,11 @@ class FilesystemScanner:
         if not target_dir.is_dir():
             return customizations
 
-        parser = config.parser_factory(target_dir)
+        try:
+            parser = config.parser_factory(target_dir, gitignore_filter=self._filter)  # type: ignore[call-arg]
+        except TypeError:
+            parser = config.parser_factory(target_dir)
+
         files = self._get_files(target_dir, config)
 
         for file_path in files:
@@ -69,13 +79,33 @@ class FilesystemScanner:
     def _get_files(self, target_dir: Path, config: ScanConfig) -> list[Path]:
         """Get files based on scan strategy."""
         if config.strategy == GlobStrategy.RGLOB:
+            if self._filter:
+                return list(self._filter.walk_filtered(target_dir, config.pattern))
             return list(target_dir.rglob(config.pattern))
         elif config.strategy == GlobStrategy.GLOB:
-            return list(target_dir.glob(config.pattern))
+            files = list(target_dir.glob(config.pattern))
+            if self._filter:
+                return [f for f in files if not self._filter.is_ignored(f)]
+            return files
         elif config.strategy == GlobStrategy.SUBDIR:
-            return [
-                subdir / config.pattern
+            subdirs = [
+                subdir
                 for subdir in target_dir.iterdir()
-                if subdir.is_dir() and (subdir / config.pattern).is_file()
+                if subdir.is_dir()
+                and (
+                    not self._filter
+                    or (
+                        not self._filter.should_skip_dir(subdir.name)
+                        and not self._filter.is_dir_ignored(subdir)
+                    )
+                )
             ]
+            files = [
+                subdir / config.pattern
+                for subdir in subdirs
+                if (subdir / config.pattern).is_file()
+            ]
+            if self._filter:
+                return [f for f in files if not self._filter.is_ignored(f)]
+            return files
         return []
