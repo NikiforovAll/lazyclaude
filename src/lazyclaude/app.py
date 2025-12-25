@@ -24,6 +24,7 @@ from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
+from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
@@ -1089,6 +1090,52 @@ class LazyClaude(App):
 
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(plugin.install_path)], shell=True)
+
+    def on_marketplace_modal_open_plugin_source(
+        self, message: MarketplaceModal.OpenPluginSource
+    ) -> None:
+        """Handle opening plugin source location from marketplace modal."""
+        plugin = message.plugin
+        marketplace = message.marketplace
+        source_type = marketplace.entry.source.source_type
+
+        if source_type == "directory":
+            if plugin.is_installed and plugin.install_path:
+                path = plugin.install_path
+            else:
+                path = (marketplace.entry.install_location / plugin.source).resolve()
+
+            success, error = open_in_file_explorer(path)
+            if not success:
+                self.notify(error or "Failed to open", severity="warning")
+        elif source_type == "github":
+            repo = marketplace.entry.source.repo
+            if repo:
+                open_github_source(repo, plugin.source)
+            else:
+                self.notify("GitHub repository not configured", severity="warning")
+        else:
+            self.notify(f"Unknown source type: {source_type}", severity="warning")
+
+    def on_marketplace_modal_open_marketplace_source(
+        self, message: MarketplaceModal.OpenMarketplaceSource
+    ) -> None:
+        """Handle opening marketplace source location."""
+        marketplace = message.marketplace
+        source_type = marketplace.entry.source.source_type
+
+        if source_type == "directory":
+            success, error = open_in_file_explorer(marketplace.entry.install_location)
+            if not success:
+                self.notify(error or "Failed to open", severity="warning")
+        elif source_type == "github":
+            repo = marketplace.entry.source.repo
+            if repo:
+                open_github_source(repo)
+            else:
+                self.notify("GitHub repository not configured", severity="warning")
+        else:
+            self.notify(f"Unknown source type: {source_type}", severity="warning")
 
     def on_marketplace_modal_marketplace_update(
         self, message: MarketplaceModal.MarketplaceUpdate

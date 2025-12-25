@@ -21,7 +21,8 @@ class MarketplaceModal(Widget):
         Binding("/", "search", "Search", show=False),
         Binding("i", "toggle_plugin", "Install/Toggle", show=False),
         Binding("d", "uninstall_plugin", "Uninstall", show=False),
-        Binding("e", "open_plugin_folder", "Open Folder", show=False),
+        Binding("e", "open_plugin_folder", "Edit", show=False),
+        Binding("o", "open_source", "Open", show=False),
         Binding("u", "update_marketplace", "Update", show=False),
         Binding("p", "preview_plugin", "Preview", show=False),
         Binding("j", "cursor_down", "Down", show=False),
@@ -106,6 +107,21 @@ class MarketplaceModal(Widget):
             self.plugin = plugin
             super().__init__()
 
+    class OpenPluginSource(Message):
+        """Emitted when user requests to open plugin source location."""
+
+        def __init__(self, plugin: MarketplacePlugin, marketplace: Marketplace) -> None:
+            self.plugin = plugin
+            self.marketplace = marketplace
+            super().__init__()
+
+    class OpenMarketplaceSource(Message):
+        """Emitted when user requests to open marketplace source location."""
+
+        def __init__(self, marketplace: Marketplace) -> None:
+            self.marketplace = marketplace
+            super().__init__()
+
     class MarketplaceUpdate(Message):
         """Emitted when user requests to update a marketplace."""
 
@@ -166,16 +182,17 @@ class MarketplaceModal(Widget):
                 action = "Enable" if not data.is_enabled else "Disable"
                 footer.update(
                     f"[bold]p[/] Preview  [bold]i[/] {action}  [bold]u[/] Update  "
-                    "[bold]d[/] Uninstall  [bold]e[/] Open  [bold]/[/] Search  [bold]Esc[/] Close"
+                    "[bold]d[/] Uninstall  [bold]e[/] Edit  [bold]o[/] Open  "
+                    "[bold]/[/] Search  [bold]Esc[/] Close"
                 )
             else:
                 footer.update(
-                    "[bold]p[/] Preview  [bold]i[/] Install  "
+                    "[bold]p[/] Preview  [bold]i[/] Install  [bold]o[/] Open  "
                     "[bold]/[/] Search  [bold]Esc[/] Close"
                 )
         elif isinstance(data, Marketplace):
             footer.update(
-                "[bold]Space[/] Toggle  [bold]u[/] Update  "
+                "[bold]Space[/] Toggle  [bold]u[/] Update  [bold]o[/] Open  "
                 "[bold]/[/] Search  [bold]Esc[/] Close"
             )
         else:
@@ -404,6 +421,23 @@ class MarketplaceModal(Widget):
         data = node.data
         if isinstance(data, MarketplacePlugin) and data.is_installed:
             self.post_message(self.OpenPluginFolder(data))
+
+    def action_open_source(self) -> None:
+        """Open the selected item's source location."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, Marketplace):
+            self.post_message(self.OpenMarketplaceSource(data))
+        elif isinstance(data, MarketplacePlugin):
+            parent = node.parent
+            if parent and isinstance(parent.data, Marketplace):
+                self.post_message(self.OpenPluginSource(data, parent.data))
 
     def action_update_marketplace(self) -> None:
         """Update the selected marketplace or plugin."""
