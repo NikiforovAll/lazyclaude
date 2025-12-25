@@ -43,6 +43,7 @@ class CustomizationType(Enum):
     MEMORY_FILE = auto()
     MCP = auto()
     HOOK = auto()
+    LSP_SERVER = auto()
 
 
 @dataclass
@@ -111,6 +112,19 @@ class MCPServerMetadata:
 
 
 @dataclass
+class LSPServerMetadata:
+    """Metadata specific to LSP servers."""
+
+    command: str | None = None
+    args: list[str] = field(default_factory=list)
+    extension_to_language: dict[str, str] = field(default_factory=dict)
+    transport: str = "stdio"
+    env: dict[str, str] = field(default_factory=dict)
+    initialization_options: dict[str, Any] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class PluginInfo:
     """Information about the source plugin for a customization."""
 
@@ -175,4 +189,5 @@ class Customization:
             CustomizationType.MEMORY_FILE: "Memory File",
             CustomizationType.MCP: "MCP Server",
             CustomizationType.HOOK: "Hook",
+            CustomizationType.LSP_SERVER: "LSP Server",
         }[self.type]

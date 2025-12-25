@@ -16,6 +16,7 @@ from lazyclaude.services.filesystem_scanner import (
     ScanConfig,
 )
 from lazyclaude.services.parsers.hook import HookParser
+from lazyclaude.services.parsers.lsp_server import LSPServerParser
 from lazyclaude.services.parsers.mcp import MCPParser
 from lazyclaude.services.parsers.memory_file import MemoryFileParser
 from lazyclaude.services.parsers.skill import SkillParser
@@ -206,6 +207,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         if plugin_info:
             customizations.extend(self._discover_plugin_mcps(plugin_dir, plugin_info))
             customizations.extend(self._discover_plugin_hooks(plugin_dir, plugin_info))
+            customizations.extend(
+                self._discover_plugin_lsp_servers(plugin_dir, plugin_info)
+            )
 
         return self._sort_customizations(customizations)
 
@@ -406,6 +410,9 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             customizations.extend(
                 self._discover_plugin_hooks(install_path, plugin_info)
             )
+            customizations.extend(
+                self._discover_plugin_lsp_servers(install_path, plugin_info)
+            )
 
         return customizations
 
@@ -440,5 +447,39 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         for customization in parser.parse(hooks_file, ConfigLevel.PLUGIN):
             customization.plugin_info = plugin_info
             customizations.append(customization)
+
+        return customizations
+
+    def _discover_plugin_lsp_servers(
+        self, install_path: Path, plugin_info: PluginInfo
+    ) -> list[Customization]:
+        """Discover LSP server configurations from a plugin."""
+        customizations: list[Customization] = []
+        parser = LSPServerParser()
+
+        lsp_file = install_path / ".lsp.json"
+        if lsp_file.is_file():
+            for customization in parser.parse(lsp_file, ConfigLevel.PLUGIN):
+                customization.plugin_info = plugin_info
+                customizations.append(customization)
+
+        plugin_json = install_path / ".claude-plugin" / "plugin.json"
+        if plugin_json.is_file():
+            try:
+                data = json.loads(plugin_json.read_text(encoding="utf-8"))
+                lsp_servers = data.get("lspServers", {})
+                if lsp_servers and isinstance(lsp_servers, dict):
+                    for lang_name, server_config in lsp_servers.items():
+                        if isinstance(server_config, dict):
+                            customization = parser.parse_server_config(
+                                lang_name,
+                                server_config,
+                                plugin_json,
+                                ConfigLevel.PLUGIN,
+                            )
+                            customization.plugin_info = plugin_info
+                            customizations.append(customization)
+            except (OSError, json.JSONDecodeError):
+                pass
 
         return customizations
