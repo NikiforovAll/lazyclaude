@@ -1,10 +1,8 @@
 """Main LazyClaude TUI Application."""
 
 import os
-import platform
 import subprocess
 import traceback
-import webbrowser
 from pathlib import Path
 
 import pyperclip
@@ -26,6 +24,7 @@ from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
+from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.services.writer import CustomizationWriter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
@@ -1101,43 +1100,22 @@ class LazyClaude(App):
         source_type = marketplace.entry.source.source_type
 
         if source_type == "directory":
-            if (
-                plugin.is_installed
-                and plugin.install_path
-                and plugin.install_path.exists()
-            ):
+            if plugin.is_installed and plugin.install_path:
                 path = plugin.install_path
             else:
                 path = (marketplace.entry.install_location / plugin.source).resolve()
-                if not path.exists():
-                    self.notify("Source directory not found", severity="warning")
-                    return
 
-            self._open_in_file_explorer(path)
+            success, error = open_in_file_explorer(path)
+            if not success:
+                self.notify(error or "Failed to open", severity="warning")
         elif source_type == "github":
             repo = marketplace.entry.source.repo
             if repo:
-                url = f"https://github.com/{repo}"
-                if plugin.source:
-                    url = f"{url}/tree/main/{plugin.source}"
-                webbrowser.open(url)
+                open_github_source(repo, plugin.source)
             else:
                 self.notify("GitHub repository not configured", severity="warning")
         else:
             self.notify(f"Unknown source type: {source_type}", severity="warning")
-
-    def _open_in_file_explorer(self, path: Path) -> None:
-        """Open a path in the system file explorer."""
-        system = platform.system()
-        try:
-            if system == "Windows":
-                subprocess.run(["explorer", str(path)], check=False)
-            elif system == "Darwin":
-                subprocess.run(["open", str(path)], check=False)
-            else:
-                subprocess.run(["xdg-open", str(path)], check=False)
-        except OSError as e:
-            self.notify(f"Failed to open explorer: {e}", severity="error")
 
     def on_marketplace_modal_open_marketplace_source(
         self, message: MarketplaceModal.OpenMarketplaceSource
@@ -1147,15 +1125,13 @@ class LazyClaude(App):
         source_type = marketplace.entry.source.source_type
 
         if source_type == "directory":
-            path = marketplace.entry.install_location
-            if path.exists():
-                self._open_in_file_explorer(path)
-            else:
-                self.notify("Marketplace directory not found", severity="warning")
+            success, error = open_in_file_explorer(marketplace.entry.install_location)
+            if not success:
+                self.notify(error or "Failed to open", severity="warning")
         elif source_type == "github":
             repo = marketplace.entry.source.repo
             if repo:
-                webbrowser.open(f"https://github.com/{repo}")
+                open_github_source(repo)
             else:
                 self.notify("GitHub repository not configured", severity="warning")
         else:
