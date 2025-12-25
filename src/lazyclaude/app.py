@@ -70,6 +70,7 @@ class LazyClaude(App):
         Binding("4", "focus_panel_4", "Panel 4", show=False),
         Binding("5", "focus_panel_5", "Panel 5", show=False),
         Binding("6", "focus_panel_6", "Panel 6", show=False),
+        Binding("7", "focus_panel_7", "Panel 7", show=False),
         Binding("ctrl+u", "open_user_config", "User Config", show=False),
         Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
         Binding("escape", "exit_preview", "Exit Preview", show=True, priority=True),
@@ -694,6 +695,12 @@ class LazyClaude(App):
         """Focus combined panel and switch to Hooks."""
         if self._combined_panel:
             self._combined_panel.switch_to_type(CustomizationType.HOOK)
+            self._combined_panel.focus()
+
+    def action_focus_panel_7(self) -> None:
+        """Focus combined panel and switch to LSP Servers."""
+        if self._combined_panel:
+            self._combined_panel.switch_to_type(CustomizationType.LSP_SERVER)
             self._combined_panel.focus()
 
     def action_focus_main_pane(self) -> None:

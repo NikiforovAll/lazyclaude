@@ -14,12 +14,13 @@ class TestCombinedPanel:
         panel = CombinedPanel()
         assert panel.active_type == CustomizationType.MEMORY_FILE
 
-    def test_combined_types_contains_three_types(self) -> None:
-        """COMBINED_TYPES should contain exactly 3 types."""
-        assert len(CombinedPanel.COMBINED_TYPES) == 3
+    def test_combined_types_contains_four_types(self) -> None:
+        """COMBINED_TYPES should contain exactly 4 types."""
+        assert len(CombinedPanel.COMBINED_TYPES) == 4
         assert CustomizationType.MEMORY_FILE in CombinedPanel.COMBINED_TYPES
         assert CustomizationType.MCP in CombinedPanel.COMBINED_TYPES
         assert CustomizationType.HOOK in CombinedPanel.COMBINED_TYPES
+        assert CustomizationType.LSP_SERVER in CombinedPanel.COMBINED_TYPES
 
     def test_type_labels_defined_for_all_combined_types(self) -> None:
         """TYPE_LABELS should have labels for all combined types."""
@@ -69,10 +70,17 @@ class TestCombinedPanelTabSwitching:
         panel.action_next_tab()
         assert panel.active_type == CustomizationType.HOOK
 
-    def test_next_tab_wraps_around(self) -> None:
-        """action_next_tab should wrap from HOOK to MEMORY_FILE."""
+    def test_next_tab_cycles_to_lsp(self) -> None:
+        """action_next_tab should cycle from HOOK to LSP_SERVER."""
         panel = CombinedPanel()
         panel.active_type = CustomizationType.HOOK
+        panel.action_next_tab()
+        assert panel.active_type == CustomizationType.LSP_SERVER
+
+    def test_next_tab_wraps_around(self) -> None:
+        """action_next_tab should wrap from LSP_SERVER to MEMORY_FILE."""
+        panel = CombinedPanel()
+        panel.active_type = CustomizationType.LSP_SERVER
         panel.action_next_tab()
         assert panel.active_type == CustomizationType.MEMORY_FILE
 
@@ -90,12 +98,19 @@ class TestCombinedPanelTabSwitching:
         panel.action_prev_tab()
         assert panel.active_type == CustomizationType.MCP
 
+    def test_prev_tab_cycles_to_hook(self) -> None:
+        """action_prev_tab should cycle from LSP_SERVER to HOOK."""
+        panel = CombinedPanel()
+        panel.active_type = CustomizationType.LSP_SERVER
+        panel.action_prev_tab()
+        assert panel.active_type == CustomizationType.HOOK
+
     def test_prev_tab_wraps_around(self) -> None:
-        """action_prev_tab should wrap from MEMORY_FILE to HOOK."""
+        """action_prev_tab should wrap from MEMORY_FILE to LSP_SERVER."""
         panel = CombinedPanel()
         panel.active_type = CustomizationType.MEMORY_FILE
         panel.action_prev_tab()
-        assert panel.active_type == CustomizationType.HOOK
+        assert panel.active_type == CustomizationType.LSP_SERVER
 
     def test_tab_switching_clamps_restored_index_to_valid_range(self) -> None:
         """Restored index should be clamped if items were removed."""
@@ -221,7 +236,17 @@ class TestCombinedPanelTabSwitching:
             )
             for i in range(3)
         ]
-        panel.customizations = memory_files + mcps + hooks
+        lsp_servers = [
+            Customization(
+                name=f"lsp{i}",
+                type=CustomizationType.LSP_SERVER,
+                path=f"/test/lsp{i}",
+                level=ConfigLevel.USER,
+                content="test",
+            )
+            for i in range(2)
+        ]
+        panel.customizations = memory_files + mcps + hooks + lsp_servers
 
         panel.active_type = CustomizationType.MEMORY_FILE
         panel.selected_index = 2
@@ -232,6 +257,9 @@ class TestCombinedPanelTabSwitching:
         panel.switch_to_type(CustomizationType.HOOK)
         panel.selected_index = 1
 
+        panel.switch_to_type(CustomizationType.LSP_SERVER)
+        panel.selected_index = 0
+
         panel.switch_to_type(CustomizationType.MEMORY_FILE)
         assert panel.selected_index == 2
 
@@ -241,13 +269,16 @@ class TestCombinedPanelTabSwitching:
         panel.switch_to_type(CustomizationType.HOOK)
         assert panel.selected_index == 1
 
+        panel.switch_to_type(CustomizationType.LSP_SERVER)
+        assert panel.selected_index == 0
+
         panel.action_next_tab()
         assert panel.active_type == CustomizationType.MEMORY_FILE
         assert panel.selected_index == 2
 
         panel.action_prev_tab()
-        assert panel.active_type == CustomizationType.HOOK
-        assert panel.selected_index == 1
+        assert panel.active_type == CustomizationType.LSP_SERVER
+        assert panel.selected_index == 0
 
     def test_switch_to_type_changes_active_type(self) -> None:
         """switch_to_type should change the active type."""

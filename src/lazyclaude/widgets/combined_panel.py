@@ -30,12 +30,14 @@ class CombinedPanel(Widget):
         CustomizationType.MEMORY_FILE,
         CustomizationType.MCP,
         CustomizationType.HOOK,
+        CustomizationType.LSP_SERVER,
     ]
 
     TYPE_LABELS = {
         CustomizationType.MEMORY_FILE: ("[4]", "Memory"),
         CustomizationType.MCP: ("[5]", "MCPs"),
         CustomizationType.HOOK: ("[6]", "Hooks"),
+        CustomizationType.LSP_SERVER: ("[7]", "LSP"),
     }
 
     BINDINGS = [

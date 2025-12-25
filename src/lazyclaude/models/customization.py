@@ -43,6 +43,7 @@ class CustomizationType(Enum):
     MEMORY_FILE = auto()
     MCP = auto()
     HOOK = auto()
+    LSP_SERVER = auto()
 
 
 @dataclass
@@ -175,4 +176,5 @@ class Customization:
             CustomizationType.MEMORY_FILE: "Memory File",
             CustomizationType.MCP: "MCP Server",
             CustomizationType.HOOK: "Hook",
+            CustomizationType.LSP_SERVER: "LSP Server",
         }[self.type]
