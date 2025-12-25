@@ -1,8 +1,10 @@
 """Main LazyClaude TUI Application."""
 
 import os
+import platform
 import subprocess
 import traceback
+import webbrowser
 from pathlib import Path
 
 import pyperclip
@@ -1089,6 +1091,75 @@ class LazyClaude(App):
 
         editor = os.environ.get("EDITOR", "vi")
         subprocess.Popen([editor, str(plugin.install_path)], shell=True)
+
+    def on_marketplace_modal_open_plugin_source(
+        self, message: MarketplaceModal.OpenPluginSource
+    ) -> None:
+        """Handle opening plugin source location from marketplace modal."""
+        plugin = message.plugin
+        marketplace = message.marketplace
+        source_type = marketplace.entry.source.source_type
+
+        if source_type == "directory":
+            if (
+                plugin.is_installed
+                and plugin.install_path
+                and plugin.install_path.exists()
+            ):
+                path = plugin.install_path
+            else:
+                path = (marketplace.entry.install_location / plugin.source).resolve()
+                if not path.exists():
+                    self.notify("Source directory not found", severity="warning")
+                    return
+
+            self._open_in_file_explorer(path)
+        elif source_type == "github":
+            repo = marketplace.entry.source.repo
+            if repo:
+                url = f"https://github.com/{repo}"
+                if plugin.source:
+                    url = f"{url}/tree/main/{plugin.source}"
+                webbrowser.open(url)
+            else:
+                self.notify("GitHub repository not configured", severity="warning")
+        else:
+            self.notify(f"Unknown source type: {source_type}", severity="warning")
+
+    def _open_in_file_explorer(self, path: Path) -> None:
+        """Open a path in the system file explorer."""
+        system = platform.system()
+        try:
+            if system == "Windows":
+                subprocess.run(["explorer", str(path)], check=False)
+            elif system == "Darwin":
+                subprocess.run(["open", str(path)], check=False)
+            else:
+                subprocess.run(["xdg-open", str(path)], check=False)
+        except OSError as e:
+            self.notify(f"Failed to open explorer: {e}", severity="error")
+
+    def on_marketplace_modal_open_marketplace_source(
+        self, message: MarketplaceModal.OpenMarketplaceSource
+    ) -> None:
+        """Handle opening marketplace source location."""
+        marketplace = message.marketplace
+        source_type = marketplace.entry.source.source_type
+
+        if source_type == "directory":
+            path = marketplace.entry.install_location
+            if path.exists():
+                self._open_in_file_explorer(path)
+            else:
+                self.notify("Marketplace directory not found", severity="warning")
+        elif source_type == "github":
+            repo = marketplace.entry.source.repo
+            if repo:
+                webbrowser.open(f"https://github.com/{repo}")
+            else:
+                self.notify("GitHub repository not configured", severity="warning")
+        else:
+            self.notify(f"Unknown source type: {source_type}", severity="warning")
 
     def on_marketplace_modal_marketplace_update(
         self, message: MarketplaceModal.MarketplaceUpdate
