@@ -8,7 +8,6 @@ from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
-    LSPServerMetadata,
 )
 from lazyclaude.services.parsers import ICustomizationParser
 
@@ -69,33 +68,12 @@ class LSPServerParser(ICustomizationParser):
     ) -> Customization:
         """Parse a single LSP server configuration."""
         command = server_config.get("command")
-        args = server_config.get("args", [])
-        extension_to_language = server_config.get("extensionToLanguage", {})
         transport = server_config.get("transport", "stdio")
-        env = server_config.get("env", {})
-        initialization_options = server_config.get("initializationOptions", {})
-        settings = server_config.get("settings", {})
 
         if command:
             description = f"{transport.upper()} command: {command}"
         else:
             description = f"{transport.upper()} server"
-
-        metadata = LSPServerMetadata(
-            command=command,
-            args=args if isinstance(args, list) else [],
-            extension_to_language=(
-                extension_to_language if isinstance(extension_to_language, dict) else {}
-            ),
-            transport=transport,
-            env=env if isinstance(env, dict) else {},
-            initialization_options=(
-                initialization_options
-                if isinstance(initialization_options, dict)
-                else {}
-            ),
-            settings=settings if isinstance(settings, dict) else {},
-        )
 
         return Customization(
             name=language_name,
@@ -104,7 +82,7 @@ class LSPServerParser(ICustomizationParser):
             path=source_path,
             description=description,
             content=json.dumps(server_config, indent=2),
-            metadata=metadata.__dict__,
+            metadata=server_config,
         )
 
     def parse_plugin_json(self, path: Path, level: ConfigLevel) -> list[Customization]:
