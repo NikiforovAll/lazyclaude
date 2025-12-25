@@ -107,6 +107,40 @@ class LSPServerParser(ICustomizationParser):
             metadata=metadata.__dict__,
         )
 
+    def parse_plugin_json(self, path: Path, level: ConfigLevel) -> list[Customization]:
+        """
+        Parse lspServers field from a plugin.json file.
+
+        Returns a list of Customization objects, one per language server.
+        Returns an error customization if parsing fails.
+        """
+        try:
+            content = path.read_text(encoding="utf-8")
+            data = json.loads(content)
+        except (OSError, json.JSONDecodeError) as e:
+            return [
+                Customization(
+                    name=path.name,
+                    type=CustomizationType.LSP_SERVER,
+                    level=level,
+                    path=path,
+                    error=f"Failed to parse plugin.json for LSP servers: {e}",
+                )
+            ]
+
+        lsp_servers = data.get("lspServers", {})
+        if not lsp_servers or not isinstance(lsp_servers, dict):
+            return []
+
+        customizations = []
+        for language_name, server_config in lsp_servers.items():
+            if isinstance(server_config, dict):
+                customizations.append(
+                    self.parse_server_config(language_name, server_config, path, level)
+                )
+
+        return customizations
+
     def parse_single(self, path: Path, level: ConfigLevel) -> Customization:
         """
         Parse interface implementation - returns first server or error.

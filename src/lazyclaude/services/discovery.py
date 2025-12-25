@@ -465,21 +465,10 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
 
         plugin_json = install_path / ".claude-plugin" / "plugin.json"
         if plugin_json.is_file():
-            try:
-                data = json.loads(plugin_json.read_text(encoding="utf-8"))
-                lsp_servers = data.get("lspServers", {})
-                if lsp_servers and isinstance(lsp_servers, dict):
-                    for lang_name, server_config in lsp_servers.items():
-                        if isinstance(server_config, dict):
-                            customization = parser.parse_server_config(
-                                lang_name,
-                                server_config,
-                                plugin_json,
-                                ConfigLevel.PLUGIN,
-                            )
-                            customization.plugin_info = plugin_info
-                            customizations.append(customization)
-            except (OSError, json.JSONDecodeError):
-                pass
+            for customization in parser.parse_plugin_json(
+                plugin_json, ConfigLevel.PLUGIN
+            ):
+                customization.plugin_info = plugin_info
+                customizations.append(customization)
 
         return customizations
