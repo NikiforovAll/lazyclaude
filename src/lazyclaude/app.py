@@ -8,6 +8,7 @@ from pathlib import Path
 import pyperclip
 from textual.app import App, ComposeResult
 from textual.containers import Container
+from textual.theme import Theme
 from textual.widgets import Footer
 
 from lazyclaude import __version__
@@ -26,11 +27,13 @@ from lazyclaude.models.customization import (
     MemoryFileRef,
 )
 from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.models.settings import AppSettings
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
-from lazyclaude.themes import CUSTOM_THEMES, DEFAULT_THEME
+from lazyclaude.services.settings import SettingsService
+from lazyclaude.themes import CUSTOM_THEMES
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
@@ -108,6 +111,8 @@ class LazyClaude(
         self._plugin_preview_mode: bool = False
         self._previewing_plugin: MarketplacePlugin | None = None
         self._plugin_customizations: list[Customization] = []
+        self._settings_service = SettingsService()
+        self._settings = AppSettings()
 
     def _fatal_error(self) -> None:
         """Print simple traceback instead of Rich's fancy one."""
@@ -159,7 +164,9 @@ class LazyClaude(
         """Handle mount event - load customizations."""
         for theme in CUSTOM_THEMES:
             self.register_theme(theme)
-        self.theme = DEFAULT_THEME
+        self._settings = self._settings_service.load()
+        self.theme = self._settings.theme
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
         self._load_customizations()
         self._update_status_panel()
         project_name = self._discovery_service.project_root.name
@@ -176,6 +183,12 @@ class LazyClaude(
         )
         if self._marketplace_modal:
             self._marketplace_modal.set_loader(self._marketplace_loader)
+
+    def _on_theme_changed(self, theme: Theme) -> None:  # noqa: ARG002
+        """Persist theme when changed via theme picker."""
+        if self._settings.theme != self.theme:
+            self._settings.theme = self.theme
+            self._settings_service.save(self._settings)
 
     def check_action(
         self,
