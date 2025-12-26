@@ -13,6 +13,12 @@ FAKE_HOME = Path("/fake/home")
 
 
 @pytest.fixture
+def _fs(fs: FakeFilesystem) -> FakeFilesystem:
+    """Alias for fs fixture when pyfakefs is needed but not explicitly used."""
+    return fs
+
+
+@pytest.fixture
 def fake_home(fs: FakeFilesystem) -> Generator[Path, None, None]:
     """Create a fake home directory and patch Path.home() to return it."""
     fs.create_dir(FAKE_HOME)

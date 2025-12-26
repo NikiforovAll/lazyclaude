@@ -6,6 +6,7 @@ from lazyclaude.services.discovery import (
 )
 from lazyclaude.services.filter import FilterService, IFilterService
 from lazyclaude.services.gitignore_filter import GitignoreFilter
+from lazyclaude.services.settings import SettingsService
 
 __all__ = [
     "ConfigDiscoveryService",
@@ -13,4 +14,5 @@ __all__ = [
     "GitignoreFilter",
     "IConfigDiscoveryService",
     "IFilterService",
+    "SettingsService",
 ]
