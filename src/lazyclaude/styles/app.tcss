@@ -115,11 +115,7 @@ MainPane:focus {
     border: double $accent;
 }
 
-/* Footer */
-Footer {
-    background: $primary;
-    color: $text;
-}
+/* Footer - let theme variables control styling */
 
 /* Filter Input */
 FilterInput {

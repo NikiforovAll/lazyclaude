@@ -6,26 +6,30 @@ import traceback
 from pathlib import Path
 
 import pyperclip
-from textual import work
 from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.containers import Container
-from textual.widgets import Footer, Static
+from textual.widgets import Footer
 
+from lazyclaude.bindings import APP_BINDINGS
+from lazyclaude.mixins import (
+    CustomizationActionsMixin,
+    FilterMixin,
+    HelpMixin,
+    MarketplaceMixin,
+    NavigationMixin,
+)
 from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
     MemoryFileRef,
-    PluginInfo,
 )
 from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
-from lazyclaude.services.opener import open_github_source, open_in_file_explorer
-from lazyclaude.services.writer import CustomizationWriter
+from lazyclaude.themes import CUSTOM_THEMES, DEFAULT_THEME
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
@@ -37,45 +41,19 @@ from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
 
 
-class LazyClaude(App):
+class LazyClaude(
+    NavigationMixin,
+    FilterMixin,
+    MarketplaceMixin,
+    CustomizationActionsMixin,
+    HelpMixin,
+    App,
+):
     """A lazygit-style TUI for visualizing Claude Code customizations."""
 
     CSS_PATH = "styles/app.tcss"
     LAYERS = ["default", "overlay"]
-
-    BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("?", "toggle_help", "Help"),
-        Binding("r", "refresh", "Refresh"),
-        Binding("e", "open_in_editor", "Edit"),
-        Binding("c", "copy_customization", "Copy"),
-        Binding("m", "move_customization", "Move"),
-        Binding("d", "delete_customization", "Delete"),
-        Binding("C", "copy_config_path", "Copy Path"),
-        Binding("tab", "focus_next_panel", "Next Panel", show=False),
-        Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
-        Binding("a", "filter_all", "All"),
-        Binding("u", "filter_user", "User"),
-        Binding("p", "filter_project", "Project"),
-        Binding("P", "filter_plugin", "Plugin"),
-        Binding("D", "toggle_plugin_enabled_filter", "Disabled"),
-        Binding("t", "toggle_plugin_enabled", "Toggle"),
-        Binding("/", "search", "Search"),
-        Binding("[", "prev_view", "[", show=True),
-        Binding("]", "next_view", "]", show=True),
-        Binding("0", "focus_main_pane", "Panel 0", show=False),
-        Binding("1", "focus_panel_1", "Panel 1", show=False),
-        Binding("2", "focus_panel_2", "Panel 2", show=False),
-        Binding("3", "focus_panel_3", "Panel 3", show=False),
-        Binding("4", "focus_panel_4", "Panel 4", show=False),
-        Binding("5", "focus_panel_5", "Panel 5", show=False),
-        Binding("6", "focus_panel_6", "Panel 6", show=False),
-        Binding("7", "focus_panel_7", "Panel 7", show=False),
-        Binding("ctrl+u", "open_user_config", "User Config", show=False),
-        Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
-        Binding("escape", "exit_preview", "Exit Preview", show=True, priority=True),
-        Binding("escape", "back", "Back", show=False),
-    ]
+    BINDINGS = APP_BINDINGS
 
     TITLE = "LazyClaude"
     SUB_TITLE = "Claude Code Customization Viewer"
@@ -178,7 +156,9 @@ class LazyClaude(App):
 
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
-        self.theme = "gruvbox"
+        for theme in CUSTOM_THEMES:
+            self.register_theme(theme)
+        self.theme = DEFAULT_THEME
         self._load_customizations()
         self._update_status_panel()
         self._config_path_resolver = ConfigPathResolver(
@@ -197,11 +177,9 @@ class LazyClaude(App):
         parameters: tuple[object, ...],  # noqa: ARG002
     ) -> bool | None:
         """Control action availability based on current state."""
-        # exit_preview only available in preview mode
         if action == "exit_preview":
             return self._plugin_preview_mode
 
-        # In preview mode, hide most actions and show only relevant ones
         if self._plugin_preview_mode:
             preview_allowed_actions = {
                 "quit",
@@ -215,6 +193,7 @@ class LazyClaude(App):
                 "focus_panel_4",
                 "focus_panel_5",
                 "focus_panel_6",
+                "focus_panel_7",
                 "focus_main_pane",
                 "prev_view",
                 "next_view",
@@ -323,6 +302,8 @@ class LazyClaude(App):
 
         self.sub_title = " | ".join(parts)
 
+    # Panel selection message handlers
+
     def on_type_panel_selection_changed(
         self, message: TypePanel.SelectionChanged
     ) -> None:
@@ -404,6 +385,43 @@ class LazyClaude(App):
                         )
                     )
 
+    # Filter input message handlers
+
+    def on_filter_input_filter_changed(
+        self, message: FilterInput.FilterChanged
+    ) -> None:
+        """Handle filter query changes (real-time filtering)."""
+        self._search_query = message.query
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
+        self._update_panels()
+        self._update_subtitle()
+
+    def on_filter_input_filter_cancelled(
+        self,
+        message: FilterInput.FilterCancelled,  # noqa: ARG002
+    ) -> None:
+        """Handle filter cancellation."""
+        self._search_query = ""
+        self._last_focused_panel = None
+        if self._main_pane:
+            self._main_pane.customization = None
+        self._update_panels()
+        self._update_subtitle()
+        self.refresh_bindings()
+
+    def on_filter_input_filter_applied(
+        self,
+        message: FilterInput.FilterApplied,  # noqa: ARG002
+    ) -> None:
+        """Handle filter application (Enter key)."""
+        if self._filter_input:
+            self._filter_input.hide()
+        self.refresh_bindings()
+
+    # Basic actions
+
     async def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
@@ -484,127 +502,7 @@ class LazyClaude(App):
         pyperclip.copy(path_str)
         self.notify(f"Copied: {path_str}", severity="information")
 
-    def action_copy_customization(self) -> None:
-        """Copy selected customization to another level."""
-        if not self._main_pane or not self._main_pane.customization:
-            return
-
-        customization = self._main_pane.customization
-
-        if customization.type not in self._COPYABLE_TYPES:
-            self._show_status_error(
-                f"Cannot copy {customization.type_label} customizations"
-            )
-            return
-
-        available = self._get_available_target_levels(customization)
-        if not available:
-            self._show_status_error("No available target levels")
-            return
-
-        self._pending_customization = customization
-        self._panel_before_selector = self._get_focused_panel()
-        self._combined_before_selector = (
-            self._combined_panel.has_focus if self._combined_panel else False
-        )
-        if self._level_selector:
-            self._level_selector.show(available, "copy")
-
-    def action_move_customization(self) -> None:
-        """Move selected customization to another level."""
-        if not self._main_pane or not self._main_pane.customization:
-            return
-
-        customization = self._main_pane.customization
-
-        if customization.type not in self._COPYABLE_TYPES:
-            self._show_status_error(
-                f"Cannot move {customization.type_label} customizations"
-            )
-            return
-
-        if customization.level == ConfigLevel.PLUGIN:
-            self._show_status_error("Cannot move from plugin-level customizations")
-            return
-
-        available = self._get_available_target_levels(customization)
-        if not available:
-            self._show_status_error("No available target levels")
-            return
-
-        self._pending_customization = customization
-        self._panel_before_selector = self._get_focused_panel()
-        self._combined_before_selector = (
-            self._combined_panel.has_focus if self._combined_panel else False
-        )
-        if self._level_selector:
-            self._level_selector.show(available, "move")
-
-    def action_delete_customization(self) -> None:
-        """Delete selected customization."""
-        if not self._main_pane or not self._main_pane.customization:
-            return
-
-        customization = self._main_pane.customization
-
-        if customization.type not in self._COPYABLE_TYPES:
-            self._show_status_error(
-                f"Cannot delete {customization.type_label} customizations"
-            )
-            return
-
-        if customization.level == ConfigLevel.PLUGIN:
-            self._show_status_error("Cannot delete plugin-level customizations")
-            return
-
-        self._panel_before_selector = self._get_focused_panel()
-        self._combined_before_selector = (
-            self._combined_panel.has_focus if self._combined_panel else False
-        )
-        if self._delete_confirm:
-            self._delete_confirm.show(customization)
-
-    async def action_back(self) -> None:
-        """Go back - exit preview mode, or return focus to panel from main pane."""
-        if self._plugin_preview_mode:
-            self._exit_plugin_preview()
-            return
-
-        if self._main_pane and self._main_pane.has_focus:
-            if self._last_focused_combined and self._combined_panel:
-                self._combined_panel.focus()
-            elif self._last_focused_panel:
-                self._last_focused_panel.focus()
-            elif self._panels:
-                self._panels[0].focus()
-
-    def action_focus_next_panel(self) -> None:
-        """Focus the next panel (panels 1-3, then combined panel)."""
-        current = self._get_focused_panel_index()
-        if current is None:
-            if self._panels:
-                self._panels[0].focus()
-        elif current < len(self._panels) - 1:
-            self._panels[current + 1].focus()
-        elif current == len(self._panels) - 1 and self._combined_panel:
-            self._combined_panel.switch_to_type(CustomizationType.MEMORY_FILE)
-            self._combined_panel.focus()
-        elif self._panels:
-            self._panels[0].focus()
-
-    def action_focus_previous_panel(self) -> None:
-        """Focus the previous panel (combined panel, then panels 3-1)."""
-        current = self._get_focused_panel_index()
-        if current is None or current == 0:
-            if self._combined_panel:
-                self._combined_panel.switch_to_type(CustomizationType.HOOK)
-                self._combined_panel.focus()
-            elif self._panels:
-                self._panels[-1].focus()
-        elif current == len(self._panels) and self._panels:
-            self._panels[-1].focus()
-        elif current > 0:
-            self._panels[current - 1].focus()
+    # Shared utilities
 
     def _get_focused_panel(self) -> TypePanel | None:
         """Get the currently focused TypePanel (not combined panel)."""
@@ -626,549 +524,6 @@ class LazyClaude(App):
             return file_path is not None
         return False
 
-    def _get_available_target_levels(
-        self, customization: Customization
-    ) -> list[ConfigLevel]:
-        """Get available target levels for copy/move based on customization type."""
-        if customization.type in self._PROJECT_LOCAL_TYPES:
-            all_levels = [
-                ConfigLevel.USER,
-                ConfigLevel.PROJECT,
-                ConfigLevel.PROJECT_LOCAL,
-            ]
-        else:
-            all_levels = [ConfigLevel.USER, ConfigLevel.PROJECT]
-        return [level for level in all_levels if level != customization.level]
-
-    def _delete_customization(
-        self, customization: Customization, writer: CustomizationWriter
-    ) -> tuple[bool, str]:
-        """Delete customization using type-specific method."""
-        if customization.type == CustomizationType.MCP:
-            return writer.delete_mcp_customization(
-                customization, self._discovery_service.project_config_path
-            )
-        elif customization.type == CustomizationType.HOOK:
-            return writer.delete_hook_customization(customization)
-        else:
-            return writer.delete_customization(customization)
-
-    def _get_focused_panel_index(self) -> int | None:
-        """Get the index of the currently focused panel (combined panel = len(panels))."""
-        for i, panel in enumerate(self._panels):
-            if panel.has_focus:
-                return i
-        if self._combined_panel and self._combined_panel.has_focus:
-            return len(self._panels)
-        return None
-
-    def _focus_panel(self, index: int) -> None:
-        """Focus a specific panel by index (0-based)."""
-        if 0 <= index < len(self._panels):
-            self._panels[index].focus()
-
-    def action_focus_panel_1(self) -> None:
-        """Focus panel 1 (Slash Commands)."""
-        self._focus_panel(0)
-
-    def action_focus_panel_2(self) -> None:
-        """Focus panel 2 (Subagents)."""
-        self._focus_panel(1)
-
-    def action_focus_panel_3(self) -> None:
-        """Focus panel 3 (Skills)."""
-        self._focus_panel(2)
-
-    def action_focus_panel_4(self) -> None:
-        """Focus combined panel and switch to Memory Files."""
-        if self._combined_panel:
-            self._combined_panel.switch_to_type(CustomizationType.MEMORY_FILE)
-            self._combined_panel.focus()
-
-    def action_focus_panel_5(self) -> None:
-        """Focus combined panel and switch to MCPs."""
-        if self._combined_panel:
-            self._combined_panel.switch_to_type(CustomizationType.MCP)
-            self._combined_panel.focus()
-
-    def action_focus_panel_6(self) -> None:
-        """Focus combined panel and switch to Hooks."""
-        if self._combined_panel:
-            self._combined_panel.switch_to_type(CustomizationType.HOOK)
-            self._combined_panel.focus()
-
-    def action_focus_panel_7(self) -> None:
-        """Focus combined panel and switch to LSP Servers."""
-        if self._combined_panel:
-            self._combined_panel.switch_to_type(CustomizationType.LSP_SERVER)
-            self._combined_panel.focus()
-
-    def action_focus_main_pane(self) -> None:
-        """Focus the main pane (panel 0)."""
-        if self._main_pane:
-            self._main_pane.focus()
-
-    def action_prev_view(self) -> None:
-        """Switch view based on focused widget."""
-        if self._combined_panel and self._combined_panel.has_focus:
-            self._combined_panel.action_prev_tab()
-        elif self._main_pane:
-            self._main_pane.action_prev_view()
-
-    def action_next_view(self) -> None:
-        """Switch view based on focused widget."""
-        if self._combined_panel and self._combined_panel.has_focus:
-            self._combined_panel.action_next_tab()
-        elif self._main_pane:
-            self._main_pane.action_next_view()
-
-    def action_filter_all(self) -> None:
-        """Show all customizations (clear level filter)."""
-        self._level_filter = None
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-        self._update_status_filter("All")
-
-    def action_filter_user(self) -> None:
-        """Show only user-level customizations."""
-        self._level_filter = ConfigLevel.USER
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-        self._update_status_filter("User")
-
-    def action_filter_project(self) -> None:
-        """Show only project-level customizations."""
-        self._level_filter = ConfigLevel.PROJECT
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-        self._update_status_filter("Project")
-
-    def action_filter_plugin(self) -> None:
-        """Show only plugin-level customizations."""
-        self._level_filter = ConfigLevel.PLUGIN
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-        self._update_status_filter("Plugin")
-
-    def action_toggle_plugin_enabled_filter(self) -> None:
-        """Toggle between enabled-only and showing all plugins."""
-        if self._plugin_enabled_filter is True:
-            self._plugin_enabled_filter = None
-        else:
-            self._plugin_enabled_filter = True
-
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-
-    def action_toggle_plugin_enabled(self) -> None:
-        """Toggle enabled state for selected plugin customization."""
-        if not self._main_pane or not self._main_pane.customization:
-            return
-
-        customization = self._main_pane.customization
-
-        if not customization.plugin_info:
-            self._show_status_error("Not a plugin customization")
-            return
-
-        self._panel_before_selector = self._get_focused_panel()
-        self._combined_before_selector = (
-            self._combined_panel.has_focus if self._combined_panel else False
-        )
-        if self._plugin_confirm:
-            self._plugin_confirm.show(
-                plugin_info=customization.plugin_info,
-                customizations=self._customizations,
-            )
-
-    def _update_status_filter(self, level: str) -> None:
-        """Update status panel filter level and path display."""
-        if self._status_panel:
-            self._status_panel.filter_level = level
-            if level == "User":
-                self._status_panel.config_path = "~/.claude"
-            elif level == "Project":
-                self._status_panel.config_path = str(
-                    self._discovery_service.project_config_path
-                )
-            elif level == "Plugin":
-                self._status_panel.config_path = "~/.claude/plugins"
-            else:
-                project_name = self._discovery_service.project_root.name
-                self._status_panel.config_path = project_name
-
-    def action_search(self) -> None:
-        """Activate search mode."""
-        if self._filter_input:
-            self._filter_input.show()
-
-    def action_toggle_marketplace(self) -> None:
-        """Toggle the marketplace browser modal."""
-        if self._marketplace_modal:
-            if self._marketplace_modal.is_visible:
-                self._marketplace_modal.hide()
-                self._restore_focus_after_selector()
-            else:
-                self._panel_before_selector = self._get_focused_panel()
-                self._combined_before_selector = (
-                    self._combined_panel.has_focus if self._combined_panel else False
-                )
-                self._marketplace_modal.show()
-
-    def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
-        """Enter plugin preview mode - show plugin's customizations in panels."""
-        if not self._marketplace_loader:
-            self.notify("Marketplace loader not available", severity="error")
-            return
-
-        plugin_dir = self._marketplace_loader.get_plugin_source_dir(plugin)
-        if not plugin_dir or not plugin_dir.exists():
-            self.notify("Plugin source not found", severity="warning")
-            return
-
-        plugin_info = PluginInfo(
-            plugin_id=plugin.full_plugin_id,
-            short_name=plugin.name,
-            version="preview",
-            install_path=plugin_dir,
-            is_enabled=plugin.is_enabled,
-        )
-        self._plugin_customizations = self._discovery_service.discover_from_directory(
-            plugin_dir, plugin_info, marketplace_plugin=plugin
-        )
-        self._previewing_plugin = plugin
-        self._plugin_preview_mode = True
-
-        if self._marketplace_modal:
-            self._marketplace_modal.hide(preserve_state=True)
-
-        self._update_panels()
-        self._update_subtitle()
-        self.refresh_bindings()
-        if self._status_panel:
-            if plugin.is_installed:
-                resolved_version = plugin_dir.name
-            else:
-                resolved_version = plugin.extra_metadata.get("version", "dev")
-            self._status_panel.config_path = (
-                f"Preview: {plugin.name} [dim]({resolved_version})[/]"
-            )
-            self._status_panel.filter_level = "Plugin"
-
-        if self._main_pane:
-            readme_path = plugin_dir / "README.md"
-            if readme_path.is_file():
-                try:
-                    readme_content = readme_path.read_text(encoding="utf-8")
-                    readme_customization = Customization(
-                        name="README.md",
-                        type=CustomizationType.MEMORY_FILE,
-                        level=ConfigLevel.PLUGIN,
-                        path=readme_path,
-                        description=f"Plugin documentation for {plugin.name}",
-                        content=readme_content,
-                        plugin_info=plugin_info,
-                    )
-                    self._main_pane.customization = readme_customization
-                except OSError:
-                    self._main_pane.customization = None
-            else:
-                self._main_pane.customization = None
-
-        if self._combined_panel:
-            self._combined_panel.switch_to_type(CustomizationType.MCP)
-
-    def _exit_plugin_preview(self) -> None:
-        """Exit plugin preview mode and return to marketplace."""
-        self._plugin_preview_mode = False
-        self._previewing_plugin = None
-        self._plugin_customizations = []
-        self._search_query = ""
-        if self._filter_input:
-            self._filter_input.clear()
-        self._update_panels()
-        self._update_subtitle()
-        self._update_status_panel()
-        self.refresh_bindings()
-
-        if self._main_pane:
-            self._main_pane.customization = None
-
-        if self._marketplace_modal:
-            self._marketplace_modal.show(preserve_state=True)
-
-    def action_exit_preview(self) -> None:
-        """Exit plugin preview mode (visible binding for Esc in preview)."""
-        self._exit_plugin_preview()
-
-    def on_marketplace_modal_plugin_preview(
-        self, message: MarketplaceModal.PluginPreview
-    ) -> None:
-        """Handle plugin preview request from marketplace modal."""
-        self._enter_plugin_preview(message.plugin)
-
-    def on_filter_input_filter_changed(
-        self, message: FilterInput.FilterChanged
-    ) -> None:
-        """Handle filter query changes (real-time filtering)."""
-        self._search_query = message.query
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-
-    def on_filter_input_filter_cancelled(
-        self,
-        message: FilterInput.FilterCancelled,  # noqa: ARG002
-    ) -> None:
-        """Handle filter cancellation."""
-        self._search_query = ""
-        self._last_focused_panel = None
-        if self._main_pane:
-            self._main_pane.customization = None
-        self._update_panels()
-        self._update_subtitle()
-        self.refresh_bindings()
-
-    def on_filter_input_filter_applied(
-        self,
-        message: FilterInput.FilterApplied,  # noqa: ARG002
-    ) -> None:
-        """Handle filter application (Enter key)."""
-        if self._filter_input:
-            self._filter_input.hide()
-        self.refresh_bindings()
-
-    def on_level_selector_level_selected(
-        self, message: LevelSelector.LevelSelected
-    ) -> None:
-        """Handle level selection from the level selector bar."""
-        if self._pending_customization:
-            self._handle_copy_or_move(
-                self._pending_customization, message.level, message.operation
-            )
-            self._pending_customization = None
-        self._restore_focus_after_selector()
-
-    def on_level_selector_selection_cancelled(
-        self,
-        message: LevelSelector.SelectionCancelled,  # noqa: ARG002
-    ) -> None:
-        """Handle level selector cancellation."""
-        self._pending_customization = None
-        self._restore_focus_after_selector()
-
-    def on_plugin_confirm_plugin_confirmed(
-        self, message: PluginConfirm.PluginConfirmed
-    ) -> None:
-        """Handle plugin toggle confirmation."""
-        writer = CustomizationWriter()
-        success, msg = writer.toggle_plugin_enabled(
-            message.plugin_info,
-            self._discovery_service.user_config_path,
-            self._discovery_service.project_config_path,
-        )
-
-        if success:
-            self.notify(msg, severity="information")
-            self.action_refresh()
-            self._restore_focus_after_selector()
-        else:
-            self.notify(msg, severity="error")
-            self._restore_focus_after_selector()
-
-    def on_plugin_confirm_confirmation_cancelled(
-        self,
-        message: PluginConfirm.ConfirmationCancelled,  # noqa: ARG002
-    ) -> None:
-        """Handle plugin confirmation cancellation."""
-        self._restore_focus_after_selector()
-
-    def on_delete_confirm_delete_confirmed(
-        self, message: DeleteConfirm.DeleteConfirmed
-    ) -> None:
-        """Handle delete confirmation."""
-        customization = message.customization
-        writer = CustomizationWriter()
-        success, msg = self._delete_customization(customization, writer)
-
-        if success:
-            self.notify(msg, severity="information")
-            self.action_refresh()
-        else:
-            self.notify(msg, severity="error")
-        self._restore_focus_after_selector()
-
-    def on_delete_confirm_delete_cancelled(
-        self,
-        message: DeleteConfirm.DeleteCancelled,  # noqa: ARG002
-    ) -> None:
-        """Handle delete cancellation."""
-        self._restore_focus_after_selector()
-
-    def on_marketplace_modal_plugin_toggled(
-        self, message: MarketplaceModal.PluginToggled
-    ) -> None:
-        """Handle plugin toggle/install from marketplace modal."""
-        plugin = message.plugin
-
-        if not plugin.is_installed:
-            cmd = ["claude", "plugin", "install", plugin.full_plugin_id]
-            action_msg = f"Installing {plugin.name}..."
-            success_msg = f"Installed {plugin.name}"
-        elif plugin.is_enabled:
-            cmd = ["claude", "plugin", "disable", plugin.full_plugin_id]
-            action_msg = f"Disabling {plugin.name}..."
-            success_msg = f"Disabled {plugin.name}"
-        else:
-            cmd = ["claude", "plugin", "enable", plugin.full_plugin_id]
-            action_msg = f"Enabling {plugin.name}..."
-            success_msg = f"Enabled {plugin.name}"
-
-        self.notify(action_msg, severity="information", timeout=2.0)
-        self._run_plugin_command(cmd, success_msg)
-
-    def on_marketplace_modal_plugin_uninstall(
-        self, message: MarketplaceModal.PluginUninstall
-    ) -> None:
-        """Handle plugin uninstall from marketplace modal."""
-        plugin = message.plugin
-
-        if not plugin.is_installed:
-            self.notify("Plugin not installed", severity="warning")
-            return
-
-        self.notify(
-            f"Uninstalling {plugin.name}...", severity="information", timeout=2.0
-        )
-        cmd = ["claude", "plugin", "uninstall", plugin.full_plugin_id]
-        self._run_plugin_command(cmd, f"Uninstalled {plugin.name}")
-
-    @work(thread=True)
-    def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
-        """Run a plugin command in a background worker."""
-        try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
-            self.call_from_thread(self._on_plugin_command_success, success_msg)
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Failed: {e.stderr or str(e)}"
-            self.call_from_thread(self._on_plugin_command_error, error_msg)
-        except FileNotFoundError:
-            self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")
-
-    def _on_plugin_command_success(self, success_msg: str) -> None:
-        """Handle successful plugin command completion."""
-        self.notify(success_msg, severity="information")
-        if self._marketplace_modal:
-            self._marketplace_modal.refresh_tree()
-        self.action_refresh()
-
-    def _on_plugin_command_error(self, error_msg: str) -> None:
-        """Handle plugin command error."""
-        self.notify(error_msg, severity="error")
-        if self._marketplace_modal:
-            self._marketplace_modal.refresh_tree()
-
-    def on_marketplace_modal_open_plugin_folder(
-        self, message: MarketplaceModal.OpenPluginFolder
-    ) -> None:
-        """Handle opening plugin folder from marketplace modal."""
-        plugin = message.plugin
-
-        if not plugin.install_path or not plugin.install_path.exists():
-            self.notify("Plugin folder not found", severity="warning")
-            return
-
-        editor = os.environ.get("EDITOR", "vi")
-        subprocess.Popen([editor, str(plugin.install_path)], shell=True)
-
-    def on_marketplace_modal_open_plugin_source(
-        self, message: MarketplaceModal.OpenPluginSource
-    ) -> None:
-        """Handle opening plugin source location from marketplace modal."""
-        plugin = message.plugin
-        marketplace = message.marketplace
-        source_type = marketplace.entry.source.source_type
-
-        if source_type == "directory":
-            if plugin.is_installed and plugin.install_path:
-                path = plugin.install_path
-            else:
-                path = (marketplace.entry.install_location / plugin.source).resolve()
-
-            success, error = open_in_file_explorer(path)
-            if not success:
-                self.notify(error or "Failed to open", severity="warning")
-        elif source_type == "github":
-            repo = marketplace.entry.source.repo
-            if repo:
-                open_github_source(repo, plugin.source)
-            else:
-                self.notify("GitHub repository not configured", severity="warning")
-        else:
-            self.notify(f"Unknown source type: {source_type}", severity="warning")
-
-    def on_marketplace_modal_open_marketplace_source(
-        self, message: MarketplaceModal.OpenMarketplaceSource
-    ) -> None:
-        """Handle opening marketplace source location."""
-        marketplace = message.marketplace
-        source_type = marketplace.entry.source.source_type
-
-        if source_type == "directory":
-            success, error = open_in_file_explorer(marketplace.entry.install_location)
-            if not success:
-                self.notify(error or "Failed to open", severity="warning")
-        elif source_type == "github":
-            repo = marketplace.entry.source.repo
-            if repo:
-                open_github_source(repo)
-            else:
-                self.notify("GitHub repository not configured", severity="warning")
-        else:
-            self.notify(f"Unknown source type: {source_type}", severity="warning")
-
-    def on_marketplace_modal_marketplace_update(
-        self, message: MarketplaceModal.MarketplaceUpdate
-    ) -> None:
-        """Handle marketplace update request."""
-        marketplace = message.marketplace
-        self.notify(f"Updating {marketplace.entry.name}...", severity="information")
-        cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
-        self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
-
-    def on_marketplace_modal_plugin_update(
-        self, message: MarketplaceModal.PluginUpdate
-    ) -> None:
-        """Handle plugin update request."""
-        plugin = message.plugin
-        self.notify(f"Updating {plugin.name}...", severity="information")
-        cmd = ["claude", "plugin", "update", plugin.full_plugin_id]
-        self._run_plugin_command(cmd, f"Updated {plugin.name}")
-
-    def on_marketplace_modal_modal_closed(
-        self,
-        message: MarketplaceModal.ModalClosed,  # noqa: ARG002
-    ) -> None:
-        """Handle marketplace modal close."""
-        self._restore_focus_after_selector()
-
     def _restore_focus_after_selector(self) -> None:
         """Restore focus to the panel that was focused before the level selector."""
         if self._combined_before_selector and self._combined_panel:
@@ -1182,55 +537,6 @@ class LazyClaude(App):
         elif self._panels:
             self._panels[0].focus()
 
-    def _handle_copy_or_move(
-        self, customization: Customization, target_level: ConfigLevel, operation: str
-    ) -> None:
-        """Handle copy or move operation."""
-        if operation == "move" and customization.level == ConfigLevel.PLUGIN:
-            self._show_status_error("Cannot move from plugin (read-only source)")
-            return
-
-        writer = CustomizationWriter()
-
-        if customization.type == CustomizationType.MCP:
-            success, msg = writer.write_mcp_customization(
-                customization,
-                target_level,
-                self._discovery_service.project_config_path,
-            )
-        elif customization.type == CustomizationType.HOOK:
-            success, msg = writer.write_hook_customization(
-                customization,
-                target_level,
-                self._discovery_service.user_config_path,
-                self._discovery_service.project_config_path,
-            )
-        else:
-            success, msg = writer.write_customization(
-                customization,
-                target_level,
-                self._discovery_service.user_config_path,
-                self._discovery_service.project_config_path,
-            )
-
-        if not success:
-            self._show_status_error(msg)
-            return
-
-        if operation == "move":
-            delete_success, delete_msg = self._delete_customization(
-                customization, writer
-            )
-            if not delete_success:
-                self._show_status_error(
-                    f"Copied but failed to delete source: {delete_msg}"
-                )
-                return
-            msg = f"Moved '{customization.name}' to {target_level.label} level"
-
-        self._show_status_success(msg)
-        self.action_refresh()
-
     def _show_status_success(self, message: str) -> None:
         """Show success toast notification."""
         self.notify(message, severity="information", timeout=3.0)
@@ -1238,68 +544,6 @@ class LazyClaude(App):
     def _show_status_error(self, message: str) -> None:
         """Show error toast notification."""
         self.notify(message, severity="error", timeout=3.0)
-
-    def action_toggle_help(self) -> None:
-        """Toggle help overlay visibility."""
-        if self._help_visible:
-            self._hide_help()
-        else:
-            self._show_help()
-
-    def _show_help(self) -> None:
-        """Show help overlay."""
-        help_content = r"""[bold]LazyClaude Help[/]
-
-[bold]Navigation[/]
-  j/k or ↑/↓     Move up/down in list
-  d/u            Page down/up (detail pane)
-  g/G            Go to top/bottom
-  0              Focus main pane
-  1-3            Focus panel by number
-  4-6            Focus combined panel tab
-  Tab            Switch between panels
-  Enter          Drill down
-  Esc            Go back
-
-[bold]Filtering[/]
-  /              Search by name/description
-  a              Show all levels
-  u              Show user-level only
-  p              Show project-level only
-  P              Show plugin-level only
-  D              Toggle disabled plugins
-
-[bold]Views[/]
-  \[ / ]         Main: content/metadata
-                 Combined: switch tabs
-
-[bold]Actions[/]
-  e              Open in $EDITOR
-  c              Copy to level
-  m              Move to level
-  t              Toggle plugin enabled
-  C              Copy path to clipboard
-  r              Refresh from disk
-  Ctrl+u         Open user config
-  M              Open marketplace
-  ?              Toggle this help
-  q              Quit
-
-[dim]Press ? or Esc to close[/]"""
-
-        if not self.query("#help-overlay"):
-            help_widget = Static(help_content, id="help-overlay")
-            self.mount(help_widget)
-            self._help_visible = True
-
-    def _hide_help(self) -> None:
-        """Hide help overlay."""
-        try:
-            help_widget = self.query_one("#help-overlay")
-            help_widget.remove()
-            self._help_visible = False
-        except Exception:
-            pass
 
 
 def create_app(
