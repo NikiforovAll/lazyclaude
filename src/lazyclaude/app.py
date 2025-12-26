@@ -26,6 +26,7 @@ from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.services.writer import CustomizationWriter
+from lazyclaude.themes import CUSTOM_THEMES, DEFAULT_THEME
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
@@ -178,7 +179,9 @@ class LazyClaude(App):
 
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
-        self.theme = "gruvbox"
+        for theme in CUSTOM_THEMES:
+            self.register_theme(theme)
+        self.theme = DEFAULT_THEME
         self._load_customizations()
         self._update_status_panel()
         self._config_path_resolver = ConfigPathResolver(
@@ -215,6 +218,7 @@ class LazyClaude(App):
                 "focus_panel_4",
                 "focus_panel_5",
                 "focus_panel_6",
+                "focus_panel_7",
                 "focus_main_pane",
                 "prev_view",
                 "next_view",

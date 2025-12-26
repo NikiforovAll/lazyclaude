@@ -14,14 +14,15 @@ from textual.widgets import Static
 from lazyclaude.models.customization import Customization, MemoryFileRef
 
 TEXTUAL_TO_PYGMENTS_THEME: dict[str, str] = {
+    "lazygit": "native",
+    "catppuccin-latte": "default",
+    "catppuccin-mocha": "monokai",
     "dracula": "dracula",
+    "flexoki": "default",
     "gruvbox": "gruvbox-dark",
     "monokai": "monokai",
     "nord": "nord",
     "solarized-light": "solarized-light",
-    "catppuccin-latte": "default",
-    "catppuccin-mocha": "monokai",
-    "flexoki": "default",
     "textual-ansi": "default",
     "textual-dark": "monokai",
     "textual-light": "default",
