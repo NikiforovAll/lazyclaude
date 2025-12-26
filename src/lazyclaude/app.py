@@ -10,6 +10,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import Footer
 
+from lazyclaude import __version__
 from lazyclaude.bindings import APP_BINDINGS
 from lazyclaude.mixins import (
     CustomizationActionsMixin,
@@ -55,8 +56,8 @@ class LazyClaude(
     LAYERS = ["default", "overlay"]
     BINDINGS = APP_BINDINGS
 
-    TITLE = "LazyClaude"
-    SUB_TITLE = "Claude Code Customization Viewer"
+    TITLE = f"LazyClaude v{__version__}"
+    SUB_TITLE = ""
 
     _COPYABLE_TYPES = (
         CustomizationType.SLASH_COMMAND,
@@ -161,6 +162,11 @@ class LazyClaude(
         self.theme = DEFAULT_THEME
         self._load_customizations()
         self._update_status_panel()
+        project_name = self._discovery_service.project_root.name
+        self.title = f"{project_name} - LazyClaude"
+        self.console.set_window_title(self.title)
+        if os.name == "nt":
+            os.system(f"title {self.title}")
         self._config_path_resolver = ConfigPathResolver(
             self._discovery_service._plugin_loader,
         )
