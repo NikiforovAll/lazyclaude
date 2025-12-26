@@ -1,6 +1,10 @@
 """LazyClaude - A lazygit-style TUI for visualizing Claude Code customizations."""
 
-__version__ = "0.1.0"
+try:
+    from lazyclaude._version import __version__
+except ImportError:
+    __version__ = "0.0.0+dev"
+
 __author__ = "nikiforovall"
 
 from lazyclaude.models.customization import (

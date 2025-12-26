@@ -2,6 +2,8 @@
 
 from textual.widgets import Static
 
+from lazyclaude import __version__
+
 
 class HelpMixin:
     """Mixin providing help overlay functionality."""
@@ -17,7 +19,7 @@ class HelpMixin:
 
     def _show_help(self) -> None:
         """Show help overlay."""
-        help_content = r"""[bold]LazyClaude Help[/]
+        help_content = f"""[bold]LazyClaude v{__version__}[/]
 
 [bold]Navigation[/]
   j/k or Up/Down     Move up/down in list
