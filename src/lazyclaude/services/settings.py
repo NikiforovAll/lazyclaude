@@ -28,9 +28,9 @@ class SettingsService:
             data = json.loads(self._settings_path.read_text(encoding="utf-8"))
             return AppSettings(
                 theme=data.get("theme", AppSettings.theme),
-                marketplace_collapse_default=data.get(
-                    "marketplace_collapse_default",
-                    AppSettings.marketplace_collapse_default,
+                marketplace_auto_collapse=data.get(
+                    "marketplace_auto_collapse",
+                    AppSettings.marketplace_auto_collapse,
                 ),
             )
         except (json.JSONDecodeError, OSError):
@@ -42,7 +42,7 @@ class SettingsService:
             self._settings_path.parent.mkdir(parents=True, exist_ok=True)
             data = {
                 "theme": settings.theme,
-                "marketplace_collapse_default": settings.marketplace_collapse_default,
+                "marketplace_auto_collapse": settings.marketplace_auto_collapse,
             }
             self._settings_path.write_text(
                 json.dumps(data, indent=2) + "\n",

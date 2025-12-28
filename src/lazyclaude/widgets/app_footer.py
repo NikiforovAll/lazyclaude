@@ -5,6 +5,8 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
+from lazyclaude.widgets.helpers.rendering import format_keybinding
+
 
 class AppFooter(Widget):
     """Footer widget that highlights active filters."""
@@ -31,36 +33,18 @@ class AppFooter(Widget):
 
     def _get_footer_text(self) -> str:
         """Render footer with highlighted active filters."""
-        all_key = (
-            "[bold]a[/] [$primary]All[/]"
-            if self.filter_level == "All"
-            else "[bold]a[/] All"
+        all_key = format_keybinding("a", "All", active=self.filter_level == "All")
+        user_key = format_keybinding("u", "User", active=self.filter_level == "User")
+        project_key = format_keybinding(
+            "p", "Project", active=self.filter_level == "Project"
         )
-        user_key = (
-            "[bold]u[/] [$primary]User[/]"
-            if self.filter_level == "User"
-            else "[bold]u[/] User"
+        plugin_key = format_keybinding(
+            "P", "Plugin", active=self.filter_level == "Plugin"
         )
-        project_key = (
-            "[bold]p[/] [$primary]Project[/]"
-            if self.filter_level == "Project"
-            else "[bold]p[/] Project"
+        disabled_key = format_keybinding(
+            "D", "Disabled", active=self.disabled_filter_active
         )
-        plugin_key = (
-            "[bold]P[/] [$primary]Plugin[/]"
-            if self.filter_level == "Plugin"
-            else "[bold]P[/] Plugin"
-        )
-        disabled_key = (
-            "[bold]D[/] [$primary]Disabled[/]"
-            if self.disabled_filter_active
-            else "[bold]D[/] Disabled"
-        )
-        search_key = (
-            "[bold]/[/] [$primary]Search[/]"
-            if self.search_active
-            else "[bold]/[/] Search"
-        )
+        search_key = format_keybinding("/", "Search", active=self.search_active)
 
         return (
             f"[bold]q[/] Quit  [bold]?[/] Help  [bold]r[/] Refresh  "

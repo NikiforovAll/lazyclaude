@@ -11,6 +11,7 @@ from textual.widgets import Static, Tree
 from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.widgets.filter_input import FilterInput
+from lazyclaude.widgets.helpers.rendering import format_keybinding
 
 
 class MarketplaceModal(Widget):
@@ -35,6 +36,7 @@ class MarketplaceModal(Widget):
         Binding("h", "collapse_node", "Collapse", show=False),
         Binding("L", "expand_all", "Expand All", show=False),
         Binding("H", "collapse_all", "Collapse All", show=False),
+        Binding("A", "add_marketplace", "Add Marketplace", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -146,6 +148,18 @@ class MarketplaceModal(Widget):
             self.plugin = plugin
             super().__init__()
 
+    class MarketplaceRemove(Message):
+        """Emitted when user requests to remove a marketplace."""
+
+        def __init__(self, marketplace: Marketplace) -> None:
+            self.marketplace = marketplace
+            super().__init__()
+
+    class MarketplaceAddRequest(Message):
+        """Emitted when user wants to add a marketplace."""
+
+        pass
+
     def __init__(
         self,
         name: str | None = None,
@@ -160,7 +174,7 @@ class MarketplaceModal(Widget):
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
         self._installed_only_filter: bool = False
-        self._collapse_default: bool = True
+        self._auto_collapse: bool = True
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -183,53 +197,52 @@ class MarketplaceModal(Widget):
         """Update footer based on selected item."""
         footer = self.query_one("#marketplace-footer", Static)
 
-        installed_toggle = (
-            "[bold]I[/] [$primary]Installed[/]"
-            if self._installed_only_filter
-            else "[bold]I[/] Installed"
+        installed_toggle = format_keybinding(
+            "I", "Installed", active=self._installed_only_filter
         )
-        search_toggle = (
-            "[bold]/[/] [$primary]Search[/]"
-            if self._filter_query
-            else "[bold]/[/] Search"
+        search_toggle = format_keybinding(
+            "/", "Search", active=bool(self._filter_query)
         )
+
+        sep = "[dim]│[/]"
+        nav = "[bold]L[/] Expand  [bold]H[/] Collapse"
+        add_mp = "[bold]A[/] Add Marketplace"
+        filters = f"{installed_toggle}  {search_toggle}"
+        close = "[bold]Esc[/] Close"
 
         if isinstance(data, MarketplacePlugin):
             if data.is_installed:
                 action = "Enable" if not data.is_enabled else "Disable"
-                footer.update(
+                actions = (
                     f"[bold]p[/] Preview  [bold]i[/] {action}  "
-                    "[bold]u[/] Update  [bold]d[/] Uninstall  [bold]e[/] Edit  "
-                    f"[bold]o[/] Open  [bold]L[/] Expand  [bold]H[/] Collapse  "
-                    f"{installed_toggle}  {search_toggle}  [bold]Esc[/] Close"
+                    f"[bold]u[/] Update  [bold]d[/] Uninstall  "
+                    f"[bold]e[/] Edit  [bold]o[/] Open"
                 )
             else:
-                footer.update(
-                    f"[bold]p[/] Preview  [bold]i[/] Install  "
-                    f"[bold]o[/] Open  [bold]L[/] Expand  [bold]H[/] Collapse  "
-                    f"{installed_toggle}  {search_toggle}  [bold]Esc[/] Close"
-                )
-        elif isinstance(data, Marketplace):
+                actions = "[bold]p[/] Preview  [bold]i[/] Install  [bold]o[/] Open"
             footer.update(
-                f"[bold]Space[/] Toggle  [bold]u[/] Update  "
-                f"[bold]o[/] Open  [bold]L[/] Expand  [bold]H[/] Collapse  "
-                f"{installed_toggle}  {search_toggle}  [bold]Esc[/] Close"
+                f"{actions}  {sep}  {nav}  {sep}  {add_mp}  {sep}  {filters}  {sep}  {close}"
+            )
+        elif isinstance(data, Marketplace):
+            actions = (
+                "[bold]Space[/] Toggle  [bold]u[/] Update  "
+                "[bold]d[/] Remove  [bold]o[/] Open"
+            )
+            footer.update(
+                f"{actions}  {sep}  {nav}  {sep}  {add_mp}  {sep}  {filters}  {sep}  {close}"
             )
         else:
-            footer.update(
-                f"[bold]L[/] Expand  [bold]H[/] Collapse  {installed_toggle}  "
-                f"{search_toggle}  [bold]Esc[/] Close"
-            )
+            footer.update(f"{add_mp}  {sep}  {nav}  {sep}  {filters}  {sep}  {close}")
 
     def set_loader(self, loader: MarketplaceLoader) -> None:
         """Set the marketplace loader."""
         self._loader = loader
 
-    def show(self, preserve_state: bool = False, collapse_default: bool = True) -> None:
+    def show(self, preserve_state: bool = False, auto_collapse: bool = True) -> None:
         """Show the modal and load marketplace data."""
         if not preserve_state:
             self._installed_only_filter = False
-            self._collapse_default = collapse_default
+            self._auto_collapse = auto_collapse
             self._marketplace_order = []
             self._load_data()
             self._build_tree()
@@ -302,7 +315,7 @@ class MarketplaceModal(Widget):
 
             installed_count = sum(1 for p in marketplace.plugins if p.is_installed)
             should_collapse = len(marketplace.plugins) > 20 or installed_count == 0
-            if self._collapse_default and should_collapse:
+            if self._auto_collapse and should_collapse:
                 mp_node.collapse()
             else:
                 mp_node.expand()
@@ -472,7 +485,7 @@ class MarketplaceModal(Widget):
             self.post_message(self.PluginToggled(data))
 
     def action_uninstall_plugin(self) -> None:
-        """Uninstall the selected plugin."""
+        """Uninstall the selected plugin or remove the selected marketplace."""
         if not self._tree:
             return
 
@@ -483,6 +496,8 @@ class MarketplaceModal(Widget):
         data = node.data
         if isinstance(data, MarketplacePlugin):
             self.post_message(self.PluginUninstall(data))
+        elif isinstance(data, Marketplace):
+            self.post_message(self.MarketplaceRemove(data))
 
     def action_open_plugin_folder(self) -> None:
         """Open the selected plugin's folder."""
@@ -541,6 +556,10 @@ class MarketplaceModal(Widget):
         data = node.data
         if isinstance(data, MarketplacePlugin):
             self.post_message(self.PluginPreview(data))
+
+    def action_add_marketplace(self) -> None:
+        """Request to add a new marketplace."""
+        self.post_message(self.MarketplaceAddRequest())
 
     def action_cursor_down(self) -> None:
         """Move cursor down in tree."""
@@ -623,3 +642,8 @@ class MarketplaceModal(Widget):
     def is_visible(self) -> bool:
         """Check if the modal is visible."""
         return self.has_class("visible")
+
+    def focus_tree(self) -> None:
+        """Focus the tree widget for keyboard navigation."""
+        if self._tree:
+            self._tree.focus()

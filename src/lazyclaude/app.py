@@ -39,7 +39,9 @@ from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
+from lazyclaude.widgets.marketplace_confirm import MarketplaceConfirm
 from lazyclaude.widgets.marketplace_modal import MarketplaceModal
+from lazyclaude.widgets.marketplace_source_input import MarketplaceSourceInput
 from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
@@ -100,6 +102,8 @@ class LazyClaude(
         self._plugin_confirm: PluginConfirm | None = None
         self._delete_confirm: DeleteConfirm | None = None
         self._marketplace_modal: MarketplaceModal | None = None
+        self._marketplace_confirm: MarketplaceConfirm | None = None
+        self._marketplace_source_input: MarketplaceSourceInput | None = None
         self._marketplace_loader: MarketplaceLoader | None = None
         self._app_footer: AppFooter | None = None
         self._help_visible = False
@@ -159,6 +163,14 @@ class LazyClaude(
         self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
         yield self._marketplace_modal
 
+        self._marketplace_confirm = MarketplaceConfirm(id="marketplace-confirm")
+        yield self._marketplace_confirm
+
+        self._marketplace_source_input = MarketplaceSourceInput(
+            id="marketplace-source-input"
+        )
+        yield self._marketplace_source_input
+
         self._app_footer = AppFooter(id="app-footer")
         yield self._app_footer
 
@@ -200,6 +212,20 @@ class LazyClaude(
         """Control action availability based on current state."""
         if action == "exit_preview":
             return self._plugin_preview_mode
+
+        marketplace_blocked_actions = {
+            "filter_all",
+            "filter_user",
+            "filter_project",
+            "filter_plugin",
+            "toggle_plugin_enabled_filter",
+        }
+        if (
+            self._marketplace_modal
+            and self._marketplace_modal.is_visible
+            and action in marketplace_blocked_actions
+        ):
+            return False
 
         if self._plugin_preview_mode:
             preview_allowed_actions = {
