@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 
 import pyperclip
+from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.theme import Theme
@@ -197,12 +198,22 @@ class LazyClaude(
         )
         if self._marketplace_modal:
             self._marketplace_modal.set_loader(self._marketplace_loader)
+        if self._marketplace_source_input:
+            self._marketplace_source_input.set_suggestions(
+                self._settings.suggested_marketplaces
+            )
+        self._initialize_suggested_marketplaces()
 
     def _on_theme_changed(self, theme: Theme) -> None:  # noqa: ARG002
         """Persist theme when changed via theme picker."""
         if self._settings.theme != self.theme:
             self._settings.theme = self.theme
             self._settings_service.save(self._settings)
+
+    @work(thread=True)
+    def _initialize_suggested_marketplaces(self) -> None:
+        """Ensure suggested marketplaces are migrated and persisted in background."""
+        self._settings_service.ensure_suggested_marketplaces(self._settings)
 
     def check_action(
         self,

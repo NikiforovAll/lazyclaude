@@ -390,6 +390,7 @@ class MarketplaceModal(Widget):
             source_info = f" [dim]({marketplace.entry.source.repo})[/]"
         elif source_type == "directory" and marketplace.entry.source.path:
             source_info = f" [dim]({marketplace.entry.source.path})[/]"
+
         return f"[bold]{marketplace.entry.name}[/] [{installed}/{total}]{source_info}"
 
     def _render_plugin_label(self, plugin: MarketplacePlugin) -> str:
