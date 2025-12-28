@@ -1,5 +1,8 @@
 """Input widget for entering marketplace source with suggestions."""
 
+import webbrowser
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -7,11 +10,6 @@ from textual.events import Key
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Input, Static
-
-KNOWN_MARKETPLACES = [
-    ("anthropics/claude-plugins-official", "Anthropic Plugins"),
-    ("NikiforovAll/claude-code-rules", "cc-handbook"),
-]
 
 NAVIGATION_KEYS = {"up", "down", "escape", "j", "k"}
 
@@ -35,6 +33,7 @@ class MarketplaceSourceInput(Widget):
         Binding("up", "move_up", "Up", show=False, priority=True),
         Binding("j", "move_down", "Down", show=False, priority=True),
         Binding("k", "move_up", "Up", show=False, priority=True),
+        Binding("o", "open_in_browser", "Open", show=False, priority=True),
         Binding("escape", "cancel", "Cancel", show=False, priority=True),
     ]
 
@@ -65,6 +64,7 @@ class MarketplaceSourceInput(Widget):
 
     MarketplaceSourceInput #suggestions {
         margin-top: 1;
+        height: auto;
     }
 
     MarketplaceSourceInput #suggestions-label {
@@ -79,6 +79,13 @@ class MarketplaceSourceInput(Widget):
     MarketplaceSourceInput .option-selected {
         background: $accent;
         color: $text;
+    }
+
+    MarketplaceSourceInput #source-footer {
+        width: 100%;
+        margin-top: 1;
+        border-top: solid $primary;
+        text-align: center;
     }
     """
 
@@ -107,6 +114,8 @@ class MarketplaceSourceInput(Widget):
         self._input: Input | None = None
         self._selected_index: int = -1  # -1 = input focused, 0+ = option selected
         self._options: list[Static] = []
+        self._suggestions: dict[str, dict[str, Any]] = {}
+        self._suggestion_items: list[tuple[str, list[str], int]] = []
 
     def compose(self) -> ComposeResult:
         """Compose the source input with suggestions."""
@@ -116,15 +125,22 @@ class MarketplaceSourceInput(Widget):
         yield self._input
 
         with Vertical(id="suggestions"):
-            yield Static("Known marketplaces:", id="suggestions-label")
-            for i, (source, display_name) in enumerate(KNOWN_MARKETPLACES):
+            yield Static("Popular Marketplaces:", id="suggestions-label")
+            for i, (repo, tags, stars) in enumerate(self._suggestion_items):
                 option = Static(
-                    f"  {display_name} [dim]({source})[/]",
+                    self._format_option(repo, tags, stars, selected=False),
                     classes="option",
                     id=f"option-{i}",
                 )
                 self._options.append(option)
                 yield option
+
+        sep = "[dim]│[/]"
+        yield Static(
+            f"[bold]Enter[/] Add  [bold]o[/] Open  {sep}  "
+            f"[bold]j/k[/] Navigate  {sep}  [bold]Esc[/] Cancel",
+            id="source-footer",
+        )
 
     def on_key(self, event: Key) -> None:
         """Handle navigation keys that pass through from NavigableInput."""
@@ -137,6 +153,10 @@ class MarketplaceSourceInput(Widget):
                 self.action_cancel()
             event.stop()
             event.prevent_default()
+        elif event.key == "o":
+            self.action_open_in_browser()
+            event.stop()
+            event.prevent_default()
         elif event.key == "enter":
             self.action_submit()
             event.stop()
@@ -144,7 +164,7 @@ class MarketplaceSourceInput(Widget):
 
     def action_move_down(self) -> None:
         """Move selection down, cycling to input when at end."""
-        if self._selected_index >= len(KNOWN_MARKETPLACES) - 1:
+        if self._selected_index >= len(self._suggestion_items) - 1:
             self._selected_index = -1
         else:
             self._selected_index += 1
@@ -153,7 +173,7 @@ class MarketplaceSourceInput(Widget):
     def action_move_up(self) -> None:
         """Move selection up, cycling to last option when at input."""
         if self._selected_index <= -1:
-            self._selected_index = len(KNOWN_MARKETPLACES) - 1
+            self._selected_index = len(self._suggestion_items) - 1
         else:
             self._selected_index -= 1
         self._update_selection()
@@ -164,11 +184,22 @@ class MarketplaceSourceInput(Widget):
         self.hide()
         self.post_message(self.SourceCancelled())
 
+    def action_open_in_browser(self) -> None:
+        """Open the selected marketplace in browser."""
+        if self._selected_index >= 0 and self._selected_index < len(
+            self._suggestion_items
+        ):
+            repo, _, _ = self._suggestion_items[self._selected_index]
+            url = f"https://github.com/{repo}"
+            webbrowser.open(url)
+
     def action_submit(self) -> None:
         """Submit selected option or typed value."""
-        if self._selected_index >= 0:
-            source, _ = KNOWN_MARKETPLACES[self._selected_index]
-            self._submit_source(source)
+        if self._selected_index >= 0 and self._selected_index < len(
+            self._suggestion_items
+        ):
+            repo, _, _ = self._suggestion_items[self._selected_index]
+            self._submit_source(repo)
         elif self._input:
             source = self._input.value.strip()
             if source:
@@ -179,16 +210,33 @@ class MarketplaceSourceInput(Widget):
         self.hide()
         self.post_message(self.SourceSubmitted(source))
 
+    def _format_option(
+        self, repo: str, tags: list[str], stars: int, selected: bool
+    ) -> str:
+        """Format an option for display."""
+        prefix = "> " if selected else "  "
+        stars_str = f" [yellow]⭐{stars}[/]" if stars else ""
+        tags_str = f" [dim]\\[{', '.join(tags)}][/]" if tags else ""
+        return f"{prefix}{repo}{stars_str}{tags_str}"
+
     def _update_selection(self) -> None:
         """Update the visual selection indicator."""
         for i, option in enumerate(self._options):
-            source, display_name = KNOWN_MARKETPLACES[i]
-            if i == self._selected_index:
-                option.update(f"> {display_name} [dim]({source})[/]")
+            if i >= len(self._suggestion_items):
+                continue
+            repo, tags, stars = self._suggestion_items[i]
+            selected = i == self._selected_index
+            option.update(self._format_option(repo, tags, stars, selected))
+            if selected:
                 option.add_class("option-selected")
             else:
-                option.update(f"  {display_name} [dim]({source})[/]")
                 option.remove_class("option-selected")
+
+        if self._selected_index >= 0 and self._input:
+            self._input.blur()
+            self.focus()
+        elif self._selected_index == -1 and self._input:
+            self._input.focus()
 
     def show(self) -> None:
         """Show the input and focus it."""
@@ -217,3 +265,60 @@ class MarketplaceSourceInput(Widget):
     def is_visible(self) -> bool:
         """Check if the input is visible."""
         return self.has_class("visible")
+
+    def set_suggestions(self, suggestions: dict[str, dict[str, Any]]) -> None:
+        """Set the marketplace suggestions from settings.
+
+        Handles any format gracefully - extracts tags/stars if present.
+        Orders: anthropics first, handbook second, rest by stars descending.
+        """
+        self._suggestions = suggestions
+        self._suggestion_items = []
+        for repo, data in suggestions.items():
+            if not isinstance(data, dict):
+                data = {}
+            tags = data.get("tags", [])
+            if not isinstance(tags, list):
+                tags = []
+            stars = data.get("stars", 0)
+            if not isinstance(stars, int):
+                stars = 0
+            self._suggestion_items.append((repo, tags, stars))
+        self._suggestion_items = self._sort_suggestions(self._suggestion_items)
+        self._rebuild_options()
+
+    def _sort_suggestions(
+        self, items: list[tuple[str, list[str], int]]
+    ) -> list[tuple[str, list[str], int]]:
+        """Sort suggestions: anthropics first, handbook second, rest by stars."""
+        pinned_first = "anthropics/claude-plugins-official"
+        pinned_second = "NikiforovAll/claude-code-rules"
+
+        first = [i for i in items if i[0] == pinned_first]
+        second = [i for i in items if i[0] == pinned_second]
+        rest = [i for i in items if i[0] not in (pinned_first, pinned_second)]
+        rest.sort(key=lambda x: x[2], reverse=True)
+
+        return first + second + rest
+
+    def _rebuild_options(self) -> None:
+        """Rebuild option widgets when suggestions change."""
+        try:
+            suggestions_container = self.query_one("#suggestions", Vertical)
+        except Exception:
+            return
+
+        for option in self._options:
+            option.remove()
+        self._options.clear()
+
+        for i, (repo, tags, stars) in enumerate(self._suggestion_items):
+            option = Static(
+                self._format_option(repo, tags, stars, selected=False),
+                classes="option",
+                id=f"option-{i}",
+            )
+            self._options.append(option)
+            suggestions_container.mount(option)
+
+        self._selected_index = -1
