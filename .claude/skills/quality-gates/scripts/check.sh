@@ -71,7 +71,11 @@ fi
 if $RUN_TEST; then
   echo -n "[$step] Pytest... "
   uv run pytest tests/ -q --tb=no --no-header 2>&1 | tail -1
+  pytest_status=${PIPESTATUS[0]}
   echo ""
+  if [[ $pytest_status -ne 0 ]]; then
+    exit "$pytest_status"
+  fi
 fi
 
 echo "=== All Quality Gates Passed ==="
