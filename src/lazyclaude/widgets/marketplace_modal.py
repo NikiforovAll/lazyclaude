@@ -625,7 +625,7 @@ class MarketplaceModal(Widget):
             data = node.data
             if isinstance(data, Marketplace):
                 if selected_id == f"marketplace:{data.entry.name}":
-                    self._tree.select_node(node)
+                    self._tree.move_cursor(node)
                     self._update_footer(data)
                     return
                 for child in node.children:
@@ -634,7 +634,7 @@ class MarketplaceModal(Widget):
                         isinstance(child_data, MarketplacePlugin)
                         and child_data.full_plugin_id == selected_id
                     ):
-                        self._tree.select_node(child)
+                        self._tree.move_cursor(child)
                         self._update_footer(child_data)
                         return
 

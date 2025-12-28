@@ -198,10 +198,17 @@ class MarketplaceMixin:
     def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
         """Run a plugin command in a background worker."""
         try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+            subprocess.run(
+                cmd,
+                capture_output=True,
+                check=True,
+                shell=True,
+                encoding="utf-8",
+                errors="replace",
+            )
             self.call_from_thread(self._on_plugin_command_success, success_msg)  # type: ignore[attr-defined]
         except subprocess.CalledProcessError as e:
-            error_msg = f"Failed: {e.stderr or str(e)}"
+            error_msg = f"Failed: {e.stderr or e}"
             self.call_from_thread(self._on_plugin_command_error, error_msg)  # type: ignore[attr-defined]
         except FileNotFoundError:
             self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")  # type: ignore[attr-defined]
@@ -327,7 +334,9 @@ class MarketplaceMixin:
         cmd = ["claude", "plugin", "marketplace", "remove", marketplace.entry.name]
         self._run_plugin_command(cmd, f"Removed {marketplace.entry.name}")
         if self._marketplace_modal:
-            self._marketplace_modal.focus_tree()
+            self._marketplace_modal.call_after_refresh(  # type: ignore[attr-defined]
+                self._marketplace_modal.focus_tree
+            )
 
     def on_marketplace_confirm_remove_cancelled(
         self,
@@ -335,7 +344,9 @@ class MarketplaceMixin:
     ) -> None:
         """Handle marketplace removal cancellation."""
         if self._marketplace_modal:
-            self._marketplace_modal.focus_tree()
+            self._marketplace_modal.call_after_refresh(  # type: ignore[attr-defined]
+                self._marketplace_modal.focus_tree
+            )
 
     def on_marketplace_source_input_source_submitted(
         self, message: MarketplaceSourceInput.SourceSubmitted

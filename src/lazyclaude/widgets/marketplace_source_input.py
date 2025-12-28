@@ -36,7 +36,6 @@ class MarketplaceSourceInput(Widget):
         Binding("j", "move_down", "Down", show=False, priority=True),
         Binding("k", "move_up", "Up", show=False, priority=True),
         Binding("escape", "cancel", "Cancel", show=False, priority=True),
-        Binding("enter", "submit", "Submit", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -144,16 +143,20 @@ class MarketplaceSourceInput(Widget):
             event.prevent_default()
 
     def action_move_down(self) -> None:
-        """Move selection down."""
-        if self._selected_index < len(KNOWN_MARKETPLACES) - 1:
+        """Move selection down, cycling to input when at end."""
+        if self._selected_index >= len(KNOWN_MARKETPLACES) - 1:
+            self._selected_index = -1
+        else:
             self._selected_index += 1
-            self._update_selection()
+        self._update_selection()
 
     def action_move_up(self) -> None:
-        """Move selection up."""
-        if self._selected_index > -1:
+        """Move selection up, cycling to last option when at input."""
+        if self._selected_index <= -1:
+            self._selected_index = len(KNOWN_MARKETPLACES) - 1
+        else:
             self._selected_index -= 1
-            self._update_selection()
+        self._update_selection()
 
     def action_cancel(self) -> None:
         """Cancel and close."""
