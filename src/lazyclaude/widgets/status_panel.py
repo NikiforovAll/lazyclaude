@@ -28,6 +28,8 @@ class StatusPanel(Widget):
 
     config_path: reactive[str] = reactive("")
     filter_level: reactive[str] = reactive("All")
+    search_active: reactive[bool] = reactive(False)
+    disabled_filter_active: reactive[bool] = reactive(False)
 
     def compose(self) -> ComposeResult:
         """Compose the panel content."""
@@ -35,7 +37,16 @@ class StatusPanel(Widget):
 
     def _get_status_text(self) -> str:
         """Render the status content with path and filter level."""
-        return f"{self.config_path} | [bold]{self.filter_level}[/]"
+        level_display = (
+            f"[$primary]{self.filter_level}[/]"
+            if self.filter_level != "All"
+            else self.filter_level
+        )
+        search_display = " | [$primary]Search[/]" if self.search_active else ""
+        disabled_display = (
+            " | [$primary]Disabled[/]" if self.disabled_filter_active else ""
+        )
+        return f"{self.config_path} | {level_display}{search_display}{disabled_display}"
 
     def on_mount(self) -> None:
         """Handle mount event."""
@@ -56,4 +67,12 @@ class StatusPanel(Widget):
 
     def watch_filter_level(self, level: str) -> None:  # noqa: ARG002
         """React to filter level changes."""
+        self._update_content()
+
+    def watch_search_active(self, active: bool) -> None:  # noqa: ARG002
+        """React to search active changes."""
+        self._update_content()
+
+    def watch_disabled_filter_active(self, active: bool) -> None:  # noqa: ARG002
+        """React to disabled filter changes."""
         self._update_content()

@@ -22,8 +22,8 @@ uv run mypy src
 echo "OK"
 echo ""
 
-echo "[4/4] Pytest..."
-uv run pytest tests/ -q
+echo -n "[4/4] Pytest... "
+uv run pytest tests/ -q --tb=no --no-header 2>&1 | tail -1
 echo ""
 
 echo "=== All Quality Gates Passed ==="

@@ -9,7 +9,6 @@ import pyperclip
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.theme import Theme
-from textual.widgets import Footer
 
 from lazyclaude import __version__
 from lazyclaude.bindings import APP_BINDINGS
@@ -34,6 +33,7 @@ from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.settings import SettingsService
 from lazyclaude.themes import CUSTOM_THEMES
+from lazyclaude.widgets.app_footer import AppFooter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
@@ -101,6 +101,7 @@ class LazyClaude(
         self._delete_confirm: DeleteConfirm | None = None
         self._marketplace_modal: MarketplaceModal | None = None
         self._marketplace_loader: MarketplaceLoader | None = None
+        self._app_footer: AppFooter | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
         self._last_focused_combined: bool = False
@@ -158,7 +159,8 @@ class LazyClaude(
         self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
         yield self._marketplace_modal
 
-        yield Footer()
+        self._app_footer = AppFooter(id="app-footer")
+        yield self._app_footer
 
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
@@ -414,6 +416,11 @@ class LazyClaude(
         self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
+        search_active = bool(message.query)
+        if self._status_panel:
+            self._status_panel.search_active = search_active
+        if self._app_footer:
+            self._app_footer.search_active = search_active
         self._update_panels()
         self._update_subtitle()
 
@@ -426,6 +433,10 @@ class LazyClaude(
         self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
+        if self._status_panel:
+            self._status_panel.search_active = False
+        if self._app_footer:
+            self._app_footer.search_active = False
         self._update_panels()
         self._update_subtitle()
         self.refresh_bindings()

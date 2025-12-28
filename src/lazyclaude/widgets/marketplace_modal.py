@@ -20,6 +20,7 @@ class MarketplaceModal(Widget):
         Binding("escape", "close_or_cancel", "Close", show=False),
         Binding("/", "search", "Search", show=False),
         Binding("i", "toggle_plugin", "Install/Toggle", show=False),
+        Binding("I", "toggle_installed_filter", "Installed Only", show=False),
         Binding("d", "uninstall_plugin", "Uninstall", show=False),
         Binding("e", "open_plugin_folder", "Edit", show=False),
         Binding("o", "open_source", "Open", show=False),
@@ -32,6 +33,8 @@ class MarketplaceModal(Widget):
         Binding("l", "expand_node", "Expand", show=False),
         Binding("left", "collapse_node", "Collapse", show=False),
         Binding("h", "collapse_node", "Collapse", show=False),
+        Binding("L", "expand_all", "Expand All", show=False),
+        Binding("H", "collapse_all", "Collapse All", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -152,9 +155,12 @@ class MarketplaceModal(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self._loader: MarketplaceLoader | None = None
         self._marketplaces: list[Marketplace] = []
+        self._marketplace_order: list[str] = []
         self._tree: Tree[MarketplacePlugin | Marketplace | None] | None = None
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
+        self._installed_only_filter: bool = False
+        self._collapse_default: bool = True
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -177,39 +183,67 @@ class MarketplaceModal(Widget):
         """Update footer based on selected item."""
         footer = self.query_one("#marketplace-footer", Static)
 
+        installed_toggle = (
+            "[bold]I[/] [$primary]Installed[/]"
+            if self._installed_only_filter
+            else "[bold]I[/] Installed"
+        )
+        search_toggle = (
+            "[bold]/[/] [$primary]Search[/]"
+            if self._filter_query
+            else "[bold]/[/] Search"
+        )
+
         if isinstance(data, MarketplacePlugin):
             if data.is_installed:
                 action = "Enable" if not data.is_enabled else "Disable"
                 footer.update(
-                    f"[bold]p[/] Preview  [bold]i[/] {action}  [bold]u[/] Update  "
-                    "[bold]d[/] Uninstall  [bold]e[/] Edit  [bold]o[/] Open  "
-                    "[bold]/[/] Search  [bold]Esc[/] Close"
+                    f"[bold]p[/] Preview  [bold]i[/] {action}  "
+                    "[bold]u[/] Update  [bold]d[/] Uninstall  [bold]e[/] Edit  "
+                    f"[bold]o[/] Open  [bold]L[/] Expand  [bold]H[/] Collapse  "
+                    f"{installed_toggle}  {search_toggle}  [bold]Esc[/] Close"
                 )
             else:
                 footer.update(
-                    "[bold]p[/] Preview  [bold]i[/] Install  [bold]o[/] Open  "
-                    "[bold]/[/] Search  [bold]Esc[/] Close"
+                    f"[bold]p[/] Preview  [bold]i[/] Install  "
+                    f"[bold]o[/] Open  [bold]L[/] Expand  [bold]H[/] Collapse  "
+                    f"{installed_toggle}  {search_toggle}  [bold]Esc[/] Close"
                 )
         elif isinstance(data, Marketplace):
             footer.update(
-                "[bold]Space[/] Toggle  [bold]u[/] Update  [bold]o[/] Open  "
-                "[bold]/[/] Search  [bold]Esc[/] Close"
+                f"[bold]Space[/] Toggle  [bold]u[/] Update  "
+                f"[bold]o[/] Open  [bold]L[/] Expand  [bold]H[/] Collapse  "
+                f"{installed_toggle}  {search_toggle}  [bold]Esc[/] Close"
             )
         else:
-            footer.update("[bold]/[/] Search  [bold]Esc[/] Close")
+            footer.update(
+                f"[bold]L[/] Expand  [bold]H[/] Collapse  {installed_toggle}  "
+                f"{search_toggle}  [bold]Esc[/] Close"
+            )
 
     def set_loader(self, loader: MarketplaceLoader) -> None:
         """Set the marketplace loader."""
         self._loader = loader
 
-    def show(self, preserve_state: bool = False) -> None:
+    def show(self, preserve_state: bool = False, collapse_default: bool = True) -> None:
         """Show the modal and load marketplace data."""
         if not preserve_state:
+            self._installed_only_filter = False
+            self._collapse_default = collapse_default
+            self._marketplace_order = []
             self._load_data()
             self._build_tree()
+            self._select_first_node()
         self.add_class("visible")
         if self._tree:
             self._tree.focus()
+
+    def _select_first_node(self) -> None:
+        """Select the first marketplace node in the tree."""
+        if self._tree and self._tree.root.children:
+            first_node = self._tree.root.children[0]
+            self._tree.move_cursor(first_node)
+            self._update_footer(first_node.data)
 
     def hide(self, preserve_state: bool = False) -> None:
         """Hide the modal."""
@@ -223,7 +257,19 @@ class MarketplaceModal(Widget):
     def _load_data(self) -> None:
         """Load marketplace data from the loader."""
         if self._loader:
-            self._marketplaces = self._loader.load_marketplaces()
+            marketplaces = self._loader.load_marketplaces()
+            if not self._marketplace_order:
+                marketplaces.sort(
+                    key=lambda m: sum(1 for p in m.plugins if p.is_installed),
+                    reverse=True,
+                )
+                self._marketplace_order = [m.entry.name for m in marketplaces]
+            else:
+                order_map = {name: i for i, name in enumerate(self._marketplace_order)}
+                marketplaces.sort(
+                    key=lambda m: order_map.get(m.entry.name, len(order_map))
+                )
+            self._marketplaces = marketplaces
         else:
             self._marketplaces = []
 
@@ -237,7 +283,7 @@ class MarketplaceModal(Widget):
         filtered = self._get_filtered_marketplaces()
 
         if not filtered:
-            if self._filter_query:
+            if self._filter_query or self._installed_only_filter:
                 self._tree.root.add_leaf("[dim italic]No matches found[/]")
             else:
                 self._tree.root.add_leaf("[dim italic]No marketplaces found[/]")
@@ -254,29 +300,41 @@ class MarketplaceModal(Widget):
                     plugin_label = self._render_plugin_label(plugin)
                     mp_node.add_leaf(plugin_label, data=plugin)
 
-            mp_node.expand()
+            installed_count = sum(1 for p in marketplace.plugins if p.is_installed)
+            should_collapse = len(marketplace.plugins) > 20 or installed_count == 0
+            if self._collapse_default and should_collapse:
+                mp_node.collapse()
+            else:
+                mp_node.expand()
 
     def _get_filtered_marketplaces(self) -> list[Marketplace]:
-        """Get marketplaces with plugins filtered by query."""
-        if not self._filter_query:
+        """Get marketplaces with plugins filtered by query and installed filter."""
+        if not self._filter_query and not self._installed_only_filter:
             return self._marketplaces
 
-        query = self._filter_query.lower()
+        query = self._filter_query.lower() if self._filter_query else ""
         filtered: list[Marketplace] = []
 
         for marketplace in self._marketplaces:
             if marketplace.error:
-                if query in marketplace.entry.name.lower():
+                if (
+                    not self._installed_only_filter
+                    and query in marketplace.entry.name.lower()
+                ):
                     filtered.append(marketplace)
                 continue
 
-            matching_plugins = [
-                plugin
-                for plugin in marketplace.plugins
-                if query in plugin.name.lower()
-                or query in plugin.description.lower()
-                or query in marketplace.entry.name.lower()
-            ]
+            matching_plugins = []
+            for plugin in marketplace.plugins:
+                if self._installed_only_filter and not plugin.is_installed:
+                    continue
+                if query and not (
+                    query in plugin.name.lower()
+                    or query in plugin.description.lower()
+                    or query in marketplace.entry.name.lower()
+                ):
+                    continue
+                matching_plugins.append(plugin)
 
             if matching_plugins:
                 filtered.append(replace(marketplace, plugins=matching_plugins))
@@ -310,14 +368,16 @@ class MarketplaceModal(Widget):
 
     def _render_marketplace_label(self, marketplace: Marketplace) -> str:
         """Render a marketplace node label."""
-        count = len(marketplace.plugins)
+        total = len(marketplace.plugins)
+        installed = sum(1 for p in marketplace.plugins if p.is_installed)
+
         source_type = marketplace.entry.source.source_type
         source_info = ""
         if source_type == "github" and marketplace.entry.source.repo:
             source_info = f" [dim]({marketplace.entry.source.repo})[/]"
-        elif source_type == "directory":
-            source_info = " [dim](local)[/]"
-        return f"[bold]{marketplace.entry.name}[/] ({count} plugins){source_info}"
+        elif source_type == "directory" and marketplace.entry.source.path:
+            source_info = f" [dim]({marketplace.entry.source.path})[/]"
+        return f"[bold]{marketplace.entry.name}[/] [{installed}/{total}]{source_info}"
 
     def _render_plugin_label(self, plugin: MarketplacePlugin) -> str:
         """Render a plugin node label."""
@@ -358,10 +418,24 @@ class MarketplaceModal(Widget):
         if self._filter_input:
             self._filter_input.show()
 
+    def action_toggle_installed_filter(self) -> None:
+        """Toggle installed-only filter."""
+        self._installed_only_filter = not self._installed_only_filter
+        self._build_tree()
+        self._update_footer_for_current_selection()
+
+    def _update_footer_for_current_selection(self) -> None:
+        """Update footer based on current tree selection."""
+        if self._tree and self._tree.cursor_node:
+            self._update_footer(self._tree.cursor_node.data)
+        else:
+            self._update_footer(None)
+
     def on_filter_input_filter_changed(self, event: FilterInput.FilterChanged) -> None:
         """Handle real-time filter changes."""
         self._filter_query = event.query
         self._build_tree()
+        self._update_footer_for_current_selection()
 
     def on_filter_input_filter_cancelled(
         self,
@@ -370,6 +444,7 @@ class MarketplaceModal(Widget):
         """Handle filter cancellation."""
         self._filter_query = ""
         self._build_tree()
+        self._update_footer_for_current_selection()
         if self._tree:
             self._tree.focus()
 
@@ -491,6 +566,18 @@ class MarketplaceModal(Widget):
         """Collapse current node."""
         if self._tree and self._tree.cursor_node:
             self._tree.cursor_node.collapse()
+
+    def action_expand_all(self) -> None:
+        """Expand all marketplace nodes."""
+        if self._tree:
+            for node in self._tree.root.children:
+                node.expand()
+
+    def action_collapse_all(self) -> None:
+        """Collapse all marketplace nodes."""
+        if self._tree:
+            for node in self._tree.root.children:
+                node.collapse()
 
     def refresh_tree(self) -> None:
         """Refresh the tree after changes, preserving cursor position."""

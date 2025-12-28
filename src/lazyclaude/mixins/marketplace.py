@@ -17,6 +17,7 @@ from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 
 if TYPE_CHECKING:
+    from lazyclaude.models.settings import AppSettings
     from lazyclaude.services.discovery import ConfigDiscoveryService
     from lazyclaude.services.marketplace_loader import MarketplaceLoader
     from lazyclaude.widgets.combined_panel import CombinedPanel
@@ -42,6 +43,7 @@ class MarketplaceMixin:
     _filter_input: "FilterInput | None"
     _panel_before_selector: "TypePanel | None"
     _combined_before_selector: bool
+    _settings: "AppSettings"
 
     def action_toggle_marketplace(self) -> None:
         """Toggle the marketplace browser modal."""
@@ -54,7 +56,9 @@ class MarketplaceMixin:
                 self._combined_before_selector = (
                     self._combined_panel.has_focus if self._combined_panel else False
                 )
-                self._marketplace_modal.show()
+                self._marketplace_modal.show(
+                    collapse_default=self._settings.marketplace_collapse_default
+                )
 
     def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
         """Enter plugin preview mode - show plugin's customizations in panels."""

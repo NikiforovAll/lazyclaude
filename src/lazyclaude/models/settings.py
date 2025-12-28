@@ -10,3 +10,4 @@ class AppSettings:
     """Persistent application settings."""
 
     theme: str = DEFAULT_THEME
+    marketplace_collapse_default: bool = True
