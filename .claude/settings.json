@@ -10,5 +10,18 @@
     ],
     "deny": [],
     "ask": []
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/quality-gates.sh --lint --format --mypy",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
   }
 }
