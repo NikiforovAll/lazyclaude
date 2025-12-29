@@ -50,7 +50,8 @@ class AppFooter(Widget):
             f"[bold]q[/] Quit  [bold]?[/] Help  [bold]r[/] Refresh  "
             f"[bold]e[/] Edit  [bold]c[/] Copy  [bold]m[/] Move  [bold]d[/] Delete  "
             f"{all_key}  {user_key}  {project_key}  {plugin_key}  "
-            f"{disabled_key}  {search_key}  [bold]M[/] Marketplace"
+            f"{disabled_key}  {search_key}  [bold]M[/] Marketplace  "
+            f"│  [bold][$accent]^p[/][/] Palette"
         )
 
     def _update_content(self) -> None:
