@@ -22,7 +22,7 @@ StatusPanel {
     height: 3;
     border: solid $primary;
     padding: 0 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     border-title-align: left;
 }
 
@@ -32,7 +32,7 @@ TypePanel {
     min-height: 3;
     border: solid $primary;
     padding: 0 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     border-title-align: left;
     border-subtitle-align: right;
 }
@@ -74,7 +74,7 @@ CombinedPanel {
     min-height: 3;
     border: solid $primary;
     padding: 0 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     border-title-align: left;
     border-subtitle-align: right;
 }
@@ -128,7 +128,7 @@ FilterInput {
 
 FilterInput.visible {
     display: block;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 FilterInput:focus-within {
