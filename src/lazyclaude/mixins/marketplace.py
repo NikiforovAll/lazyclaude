@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from lazyclaude.models.settings import AppSettings
     from lazyclaude.services.discovery import ConfigDiscoveryService
     from lazyclaude.services.marketplace_loader import MarketplaceLoader
+    from lazyclaude.widgets.app_footer import AppFooter
     from lazyclaude.widgets.combined_panel import CombinedPanel
     from lazyclaude.widgets.detail_pane import MainPane
     from lazyclaude.widgets.filter_input import FilterInput
@@ -45,6 +46,7 @@ class MarketplaceMixin:
     _combined_panel: "CombinedPanel | None"
     _status_panel: "StatusPanel | None"
     _filter_input: "FilterInput | None"
+    _app_footer: "AppFooter | None"
     _panel_before_selector: "TypePanel | None"
     _combined_before_selector: bool
     _settings: "AppSettings"
@@ -63,6 +65,7 @@ class MarketplaceMixin:
                 self._marketplace_modal.show(
                     auto_collapse=self._settings.marketplace_auto_collapse
                 )
+            self._update_footer_actions()  # type: ignore[attr-defined]
 
     def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
         """Enter plugin preview mode - show plugin's customizations in panels."""
@@ -93,6 +96,7 @@ class MarketplaceMixin:
 
         self._update_panels()  # type: ignore[attr-defined]
         self._update_subtitle()  # type: ignore[attr-defined]
+        self._update_footer_actions()  # type: ignore[attr-defined]
         self.refresh_bindings()  # type: ignore[attr-defined]
         if self._status_panel:
             if plugin.is_installed:
@@ -138,6 +142,7 @@ class MarketplaceMixin:
         self._update_panels()  # type: ignore[attr-defined]
         self._update_subtitle()  # type: ignore[attr-defined]
         self._update_status_panel()  # type: ignore[attr-defined]
+        self._update_footer_actions()  # type: ignore[attr-defined]
         self.refresh_bindings()  # type: ignore[attr-defined]
 
         if self._main_pane:
@@ -309,6 +314,7 @@ class MarketplaceMixin:
     ) -> None:
         """Handle marketplace modal close."""
         self._restore_focus_after_selector()  # type: ignore[attr-defined]
+        self._update_footer_actions()  # type: ignore[attr-defined]
 
     def on_marketplace_modal_marketplace_remove(
         self, message: MarketplaceModal.MarketplaceRemove
