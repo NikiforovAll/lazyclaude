@@ -186,6 +186,7 @@ class LazyClaude(
         self.theme_changed_signal.subscribe(self, self._on_theme_changed)
         self._load_customizations()
         self._update_status_panel()
+        self._update_footer_actions()
         project_name = self._discovery_service.project_root.name
         self.title = f"{project_name} - LazyClaude"
         self.console.set_window_title(self.title)
@@ -245,6 +246,7 @@ class LazyClaude(
                 "quit",
                 "toggle_help",
                 "search",
+                "copy_config_path",
                 "focus_next_panel",
                 "focus_previous_panel",
                 "focus_panel_1",
@@ -362,6 +364,51 @@ class LazyClaude(
 
         self.sub_title = " | ".join(parts)
 
+    def _update_footer_actions(self) -> None:
+        """Update footer action visibility based on current state."""
+        if not self._app_footer:
+            return
+
+        # Mode states
+        self._app_footer.preview_mode = self._plugin_preview_mode
+        self._app_footer.marketplace_modal_visible = (
+            self._marketplace_modal is not None and self._marketplace_modal.is_visible
+        )
+
+        # In preview mode, most actions are disabled
+        if self._plugin_preview_mode:
+            self._app_footer.can_refresh = False
+            self._app_footer.can_edit = False
+            self._app_footer.can_copy = False
+            self._app_footer.can_move = False
+            self._app_footer.can_delete = False
+            return
+
+        # Check if we have a valid selection
+        customization = self._main_pane.customization if self._main_pane else None
+        has_selection = customization is not None
+        is_skill_subfile = self._is_skill_subfile_selected()
+        is_copyable_type = (
+            has_selection
+            and customization is not None
+            and customization.type in self._COPYABLE_TYPES
+        )
+        is_plugin_level = (
+            has_selection
+            and customization is not None
+            and customization.level == ConfigLevel.PLUGIN
+        )
+
+        self._app_footer.can_refresh = True
+        self._app_footer.can_edit = has_selection
+        self._app_footer.can_copy = is_copyable_type and not is_skill_subfile
+        self._app_footer.can_move = (
+            is_copyable_type and not is_skill_subfile and not is_plugin_level
+        )
+        self._app_footer.can_delete = (
+            is_copyable_type and not is_skill_subfile and not is_plugin_level
+        )
+
     # Panel selection message handlers
 
     def on_type_panel_selection_changed(
@@ -371,6 +418,7 @@ class LazyClaude(
         if self._main_pane:
             self._update_display_path(message.customization)
             self._main_pane.customization = message.customization
+        self._update_footer_actions()
         self.refresh_bindings()
 
     def on_type_panel_drill_down(self, message: TypePanel.DrillDown) -> None:
@@ -389,6 +437,7 @@ class LazyClaude(
         if self._main_pane:
             self._update_display_path(message.customization)
             self._main_pane.customization = message.customization
+        self._update_footer_actions()
         self.refresh_bindings()
 
     def on_combined_panel_drill_down(self, message: CombinedPanel.DrillDown) -> None:
