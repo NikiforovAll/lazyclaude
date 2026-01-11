@@ -21,6 +21,7 @@ class FilterInput(Widget):
         height: 3;
         border: solid $accent;
         padding: 0 1;
+        margin-bottom: 1;
         display: none;
     }
 
