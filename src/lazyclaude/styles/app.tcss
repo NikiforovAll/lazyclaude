@@ -123,12 +123,12 @@ FilterInput {
     height: 3;
     border: solid $accent;
     padding: 0 1;
+    margin-bottom: 1;
     display: none;
 }
 
 FilterInput.visible {
     display: block;
-    margin-bottom: 0;
 }
 
 FilterInput:focus-within {
