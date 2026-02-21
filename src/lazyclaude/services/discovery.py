@@ -1,6 +1,7 @@
 """Service for discovering Claude Code customizations."""
 
 import json
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
+    MemoryFileRef,
     PluginInfo,
 )
 from lazyclaude.models.marketplace import MarketplacePlugin
@@ -171,6 +173,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             )
 
         customizations.extend(self._discover_memory_files())
+        customizations.extend(self._discover_auto_memory())
         customizations.extend(self._discover_rules())
         customizations.extend(self._discover_mcps())
         customizations.extend(self._discover_hooks())
@@ -467,6 +470,59 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
                 customizations.append(
                     parser.parse(local_file, ConfigLevel.PROJECT_LOCAL)
                 )
+
+        return customizations
+
+    def _get_project_slug(self) -> str:
+        """Derive project slug from project_root path.
+
+        Matches Claude Code's convention: replace all non-alphanumeric-non-hyphen
+        chars with '-'. E.g. C:\\Users\\user\\dev\\project -> C--Users-user-dev-project
+        """
+        return re.sub(r"[^a-zA-Z0-9\-]", "-", str(self.project_root))
+
+    def _discover_auto_memory(self) -> list[Customization]:
+        """Discover auto memory files from ~/.claude/projects/<slug>/memory/."""
+        customizations: list[Customization] = []
+        slug = self._get_project_slug()
+        memory_dir = self.user_config_path / "projects" / slug / "memory"
+
+        if not memory_dir.is_dir():
+            return customizations
+
+        parser = MemoryFileParser()
+        entrypoint = memory_dir / "MEMORY.md"
+
+        if entrypoint.is_file():
+            customization = parser.parse(entrypoint, ConfigLevel.PROJECT_LOCAL)
+            topic_files = sorted(
+                f
+                for f in memory_dir.iterdir()
+                if f.is_file() and f.suffix == ".md" and f.name != "MEMORY.md"
+            )
+            existing_import_names = {
+                r.split("/")[-1] for r in customization.metadata.get("imports", [])
+            }
+            synth_refs: list[MemoryFileRef] = []
+            for tf in topic_files:
+                if tf.name not in existing_import_names:
+                    try:
+                        content = tf.read_text(encoding="utf-8")
+                    except OSError:
+                        content = None
+                    synth_refs.append(
+                        MemoryFileRef(
+                            name=tf.name, path=tf, content=content, exists=True
+                        )
+                    )
+            existing_refs = customization.metadata.get("refs", [])
+            customization.metadata["refs"] = existing_refs + synth_refs
+            customizations.append(customization)
+        else:
+            for md_file in sorted(memory_dir.glob("*.md")):
+                customization = parser.parse(md_file, ConfigLevel.PROJECT_LOCAL)
+                customization.name = md_file.name
+                customizations.append(customization)
 
         return customizations
 
