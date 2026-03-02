@@ -28,6 +28,7 @@ class ScanConfig:
     pattern: str
     strategy: GlobStrategy
     parser_factory: Callable[[Path], Any]
+    max_depth: int | None = None
 
 
 class FilesystemScanner:
@@ -80,7 +81,11 @@ class FilesystemScanner:
         """Get files based on scan strategy."""
         if config.strategy == GlobStrategy.RGLOB:
             if self._filter:
-                return list(self._filter.walk_filtered(target_dir, config.pattern))
+                return list(
+                    self._filter.walk_filtered(
+                        target_dir, config.pattern, max_depth=config.max_depth
+                    )
+                )
             return list(target_dir.rglob(config.pattern))
         elif config.strategy == GlobStrategy.GLOB:
             files = list(target_dir.glob(config.pattern))
