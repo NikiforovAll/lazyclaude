@@ -28,6 +28,8 @@ from lazyclaude.services.parsers.slash_command import SlashCommandParser
 from lazyclaude.services.parsers.subagent import SubagentParser
 from lazyclaude.services.plugin_loader import PluginLoader
 
+DEFAULT_MAX_WALK_DEPTH = 5
+
 SCAN_CONFIGS = {
     "slash_commands": ScanConfig(
         subdir="commands",
@@ -446,7 +448,7 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
                 customizations.append(parser.parse(memory_file, ConfigLevel.PROJECT))
 
         for claude_md in self._gitignore_filter.walk_filtered(
-            self.project_root, "CLAUDE.md"
+            self.project_root, "CLAUDE.md", max_depth=DEFAULT_MAX_WALK_DEPTH
         ):
             resolved = claude_md.resolve()
             if resolved not in seen_paths:

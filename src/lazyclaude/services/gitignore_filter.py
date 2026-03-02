@@ -124,9 +124,17 @@ class GitignoreFilter:
         dir_str = str(rel_path) + "/"
         return self._spec.match_file(dir_str)
 
-    def walk_filtered(self, root: Path, pattern: str) -> Iterator[Path]:
+    def walk_filtered(
+        self, root: Path, pattern: str, max_depth: int | None = None
+    ) -> Iterator[Path]:
         """Walk directory tree with pruning, yielding paths matching pattern."""
+        root_depth = str(root).count(os.sep)
         for dirpath, dirnames, filenames in os.walk(root):
+            current_depth = str(dirpath).count(os.sep) - root_depth
+            if max_depth is not None and current_depth >= max_depth:
+                dirnames.clear()
+                continue
+
             dirnames[:] = [
                 d
                 for d in dirnames

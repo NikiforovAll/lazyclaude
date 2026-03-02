@@ -174,6 +174,32 @@ def test_walk_filtered_prunes_gitignored_directories(tmp_path: Path) -> None:
     assert results[0] == tmp_path / "src" / "main.md"
 
 
+def test_walk_filtered_respects_max_depth(tmp_path: Path) -> None:
+    """Test walk_filtered stops traversal beyond max_depth."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "shallow.md").write_text("depth 1")
+    (tmp_path / "a" / "b").mkdir()
+    (tmp_path / "a" / "b" / "mid.md").write_text("depth 2")
+    (tmp_path / "a" / "b" / "c").mkdir()
+    (tmp_path / "a" / "b" / "c" / "deep.md").write_text("depth 3")
+
+    filter_service = GitignoreFilter(project_root=tmp_path)
+
+    results_depth2 = sorted(filter_service.walk_filtered(tmp_path, "*.md", max_depth=2))
+    assert len(results_depth2) == 1
+    assert results_depth2[0] == tmp_path / "a" / "shallow.md"
+
+    results_depth3 = sorted(filter_service.walk_filtered(tmp_path, "*.md", max_depth=3))
+    assert len(results_depth3) == 2
+    assert results_depth3[0] == tmp_path / "a" / "b" / "mid.md"
+    assert results_depth3[1] == tmp_path / "a" / "shallow.md"
+
+    results_no_limit = sorted(
+        filter_service.walk_filtered(tmp_path, "*.md", max_depth=None)
+    )
+    assert len(results_no_limit) == 3
+
+
 def test_walk_filtered_prunes_nested_gitignored_directories(tmp_path: Path) -> None:
     """Test that nested directories matching gitignore are pruned early."""
     gitignore_path = tmp_path / ".gitignore"
