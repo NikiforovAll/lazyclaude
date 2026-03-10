@@ -7,18 +7,17 @@ from typing import Any
 from lazyclaude.models.settings import AppSettings
 
 DEFAULT_SUGGESTED_MARKETPLACES: dict[str, dict[str, Any]] = {
-    "anthropics/claude-plugins-official": {"tags": ["official"], "stars": 854},
-    "NikiforovAll/claude-code-rules": {"tags": ["best-practices"], "stars": 46},
-    "SawyerHood/dev-browser": {"tags": ["browser-automation"], "stars": 1511},
-    "Piebald-AI/claude-code-lsps": {"tags": ["lsp"], "stars": 57},
-    "wshobson/agents": {"tags": ["multi-agent", "orchestration"], "stars": 23707},
-    "davila7/claude-code-templates": {"tags": ["templates", "cli"], "stars": 13961},
-    "ComposioHQ/awesome-claude-skills": {"tags": ["skills", "curated"], "stars": 12283},
-    "steveyegge/beads": {"tags": ["memory", "context"], "stars": 6571},
-    "ccplugins/awesome-claude-code-plugins": {
-        "tags": ["plugins", "curated"],
-        "stars": 151,
+    "anthropics/skills": {"tags": ["official", "skills"], "stars": 88580},
+    "anthropics/knowledge-work-plugins": {
+        "tags": ["official", "knowledge"],
+        "stars": 8847,
     },
+    "anthropics/claude-plugins-official": {"tags": ["official"], "stars": 9612},
+    "NikiforovAll/claude-code-rules": {"tags": ["best-practices"], "stars": 99},
+    "Piebald-AI/claude-code-lsps": {"tags": ["lsp"], "stars": 288},
+    "wshobson/agents": {"tags": ["multi-agent", "orchestration"], "stars": 30851},
+    "davila7/claude-code-templates": {"tags": ["templates", "cli"], "stars": 22583},
+    "ComposioHQ/awesome-claude-skills": {"tags": ["skills", "curated"], "stars": 42423},
 }
 
 
