@@ -27,6 +27,12 @@ class MarketplaceLoader:
         self._install_paths: dict[str, Path] | None = None
         self._installed_versions: dict[str, str] | None = None
         self._marketplaces_cache: list[Marketplace] | None = None
+        self._installed_scopes: dict[str, list[str]] | None = None
+        self._user_installed_ids: set[str] | None = None
+        self._project_installed_ids: set[str] | None = None
+        self._scope_install_paths: dict[str, dict[str, Path]] | None = None
+        self._scope_versions: dict[str, dict[str, str]] | None = None
+        self.display_scope: str = "user"
 
     def load_marketplaces(self) -> list[Marketplace]:
         """Load all marketplaces from known_marketplaces.json."""
@@ -113,15 +119,32 @@ class MarketplaceLoader:
             return None
 
         full_id = f"{name}@{marketplace_name}"
-        is_installed = full_id in (self._installed_plugin_ids or set())
+
+        if self.display_scope == "project":
+            scope_ids = self._project_installed_ids or set()
+        else:
+            scope_ids = self._user_installed_ids or set()
+        is_installed = full_id in scope_ids
         is_enabled = full_id in (self._enabled_plugin_ids or set())
 
         source = data.get("source", "")
         if isinstance(source, dict):
             source = source.get("url", str(source))
 
-        install_path = (self._install_paths or {}).get(full_id)
-        installed_version = (self._installed_versions or {}).get(full_id)
+        scope_paths = (self._scope_install_paths or {}).get(full_id, {})
+        scope_vers = (self._scope_versions or {}).get(full_id, {})
+        if self.display_scope == "project":
+            install_path = scope_paths.get("project") or scope_paths.get("local")
+            installed_version = scope_vers.get("project") or scope_vers.get("local")
+        else:
+            install_path = scope_paths.get("user")
+            installed_version = scope_vers.get("user")
+        if not install_path:
+            install_path = (self._install_paths or {}).get(full_id)
+        if not installed_version:
+            installed_version = (self._installed_versions or {}).get(full_id)
+
+        installed_scopes = (self._installed_scopes or {}).get(full_id, [])
 
         return MarketplacePlugin(
             name=name,
@@ -133,6 +156,7 @@ class MarketplaceLoader:
             is_enabled=is_enabled if is_installed else True,
             install_path=install_path,
             installed_version=installed_version,
+            installed_scopes=installed_scopes,
             extra_metadata={
                 k: v
                 for k, v in data.items()
@@ -173,15 +197,55 @@ class MarketplaceLoader:
             )
             self._install_paths = {}
             self._installed_versions = {}
+            self._installed_scopes = {}
+            self._user_installed_ids = set()
+            self._project_installed_ids = set()
+            self._scope_install_paths = {}
+            self._scope_versions = {}
+            project_root = self._plugin_loader.project_root
+            resolved_root = project_root.resolve() if project_root else None
+
             for pid, installations in registry.installed.items():
                 if installations:
                     self._install_paths[pid] = Path(installations[0].install_path)
                     self._installed_versions[pid] = installations[0].version
+
+                scopes: list[str] = []
+                for inst in installations:
+                    scope = inst.scope
+                    if scope == "user":
+                        self._user_installed_ids.add(pid)
+                        scopes.append("user")
+                    elif scope in ("project", "local"):
+                        if resolved_root and inst.project_path:
+                            try:
+                                if Path(inst.project_path).resolve() == resolved_root:
+                                    self._project_installed_ids.add(pid)
+                                    scopes.append(scope)
+                            except OSError:
+                                pass
+                        else:
+                            scopes.append(scope)
+
+                    if pid not in self._scope_install_paths:
+                        self._scope_install_paths[pid] = {}
+                        self._scope_versions[pid] = {}
+                    if inst.install_path:
+                        self._scope_install_paths[pid][scope] = Path(inst.install_path)
+                        self._scope_versions[pid][scope] = inst.version
+
+                if scopes:
+                    self._installed_scopes[pid] = list(dict.fromkeys(scopes))
         else:
             self._installed_plugin_ids = set()
             self._enabled_plugin_ids = set()
             self._install_paths = {}
             self._installed_versions = {}
+            self._installed_scopes = {}
+            self._user_installed_ids = set()
+            self._project_installed_ids = set()
+            self._scope_install_paths = {}
+            self._scope_versions = {}
 
     def get_plugin_source_dir(self, plugin: MarketplacePlugin) -> Path | None:
         """Get the source directory for a plugin (installed or from marketplace)."""
@@ -227,11 +291,16 @@ class MarketplaceLoader:
         return None
 
     def refresh(self) -> None:
-        """Clear cache to force reload."""
+        """Clear cache to force reload (preserves display_scope)."""
         self._installed_plugin_ids = None
         self._enabled_plugin_ids = None
         self._install_paths = None
         self._installed_versions = None
         self._marketplaces_cache = None
+        self._installed_scopes = None
+        self._user_installed_ids = None
+        self._project_installed_ids = None
+        self._scope_install_paths = None
+        self._scope_versions = None
         if self._plugin_loader:
             self._plugin_loader._registry = None

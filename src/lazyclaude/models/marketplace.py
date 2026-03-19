@@ -37,6 +37,7 @@ class MarketplacePlugin:
     is_enabled: bool = True
     install_path: Path | None = None
     installed_version: str | None = None
+    installed_scopes: list[str] = field(default_factory=list)
     extra_metadata: dict[str, Any] = field(default_factory=dict)
 
 

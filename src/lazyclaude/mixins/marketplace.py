@@ -161,25 +161,61 @@ class MarketplaceMixin:
         """Handle plugin preview request from marketplace modal."""
         self._enter_plugin_preview(message.plugin)
 
+    def _resolve_plugin_scope(self, plugin: MarketplacePlugin) -> str:
+        """Resolve the CLI --scope value for a plugin based on current view."""
+        view_scope = (
+            self._marketplace_modal.scope_view if self._marketplace_modal else "user"
+        )
+        if view_scope == "project":
+            return next(
+                (s for s in plugin.installed_scopes if s in ("project", "local")),
+                "project",
+            )
+        return "user" if "user" in plugin.installed_scopes else view_scope
+
     def on_marketplace_modal_plugin_toggled(
         self, message: MarketplaceModal.PluginToggled
     ) -> None:
-        """Handle plugin toggle/install from marketplace modal."""
+        """Handle plugin enable/disable from marketplace modal."""
         plugin = message.plugin
 
         if not plugin.is_installed:
-            cmd = ["claude", "plugin", "install", plugin.full_plugin_id]
-            action_msg = f"Installing {plugin.name}..."
-            success_msg = f"Installed {plugin.name}"
-        elif plugin.is_enabled:
-            cmd = ["claude", "plugin", "disable", plugin.full_plugin_id]
-            action_msg = f"Disabling {plugin.name}..."
-            success_msg = f"Disabled {plugin.name}"
-        else:
-            cmd = ["claude", "plugin", "enable", plugin.full_plugin_id]
-            action_msg = f"Enabling {plugin.name}..."
-            success_msg = f"Enabled {plugin.name}"
+            return
 
+        scope = self._resolve_plugin_scope(plugin)
+        action = "disable" if plugin.is_enabled else "enable"
+        cmd = [
+            "claude",
+            "plugin",
+            action,
+            plugin.full_plugin_id,
+            "--scope",
+            scope,
+        ]
+        action_msg = (
+            f"{'Disabling' if plugin.is_enabled else 'Enabling'} {plugin.name}..."
+        )
+        success_msg = f"{'Disabled' if plugin.is_enabled else 'Enabled'} {plugin.name}"
+
+        self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
+        self._run_plugin_command(cmd, success_msg)
+
+    def on_marketplace_modal_plugin_install_with_scope(
+        self, message: MarketplaceModal.PluginInstallWithScope
+    ) -> None:
+        """Handle plugin install with specific scope from marketplace modal."""
+        plugin = message.plugin
+        scope = message.scope
+        cmd = [
+            "claude",
+            "plugin",
+            "install",
+            plugin.full_plugin_id,
+            "--scope",
+            scope,
+        ]
+        action_msg = f"Installing {plugin.name} ({scope})..."
+        success_msg = f"Installed {plugin.name} ({scope})"
         self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
         self._run_plugin_command(cmd, success_msg)
 
@@ -193,16 +229,27 @@ class MarketplaceMixin:
             self.notify("Plugin not installed", severity="warning")  # type: ignore[attr-defined]
             return
 
+        scope = self._resolve_plugin_scope(plugin)
         self.notify(  # type: ignore[attr-defined]
-            f"Uninstalling {plugin.name}...", severity="information", timeout=2.0
+            f"Uninstalling {plugin.name} ({scope})...",
+            severity="information",
+            timeout=2.0,
         )
-        cmd = ["claude", "plugin", "uninstall", plugin.full_plugin_id]
-        self._run_plugin_command(cmd, f"Uninstalled {plugin.name}")
+        cmd = [
+            "claude",
+            "plugin",
+            "uninstall",
+            plugin.full_plugin_id,
+            "--scope",
+            scope,
+        ]
+        self._run_plugin_command(cmd, f"Uninstalled {plugin.name} ({scope})")
 
     @work(thread=True)
     def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
         """Run a plugin command in a background worker."""
         try:
+            cwd = str(self._discovery_service.project_root)  # type: ignore[attr-defined]
             subprocess.run(
                 cmd,
                 capture_output=True,
@@ -210,6 +257,7 @@ class MarketplaceMixin:
                 shell=True,
                 encoding="utf-8",
                 errors="replace",
+                cwd=cwd,
             )
             self.call_from_thread(self._on_plugin_command_success, success_msg)  # type: ignore[attr-defined]
         except subprocess.CalledProcessError as e:
@@ -304,8 +352,16 @@ class MarketplaceMixin:
     ) -> None:
         """Handle plugin update request."""
         plugin = message.plugin
+        scope = self._resolve_plugin_scope(plugin)
         self.notify(f"Updating {plugin.name}...", severity="information")  # type: ignore[attr-defined]
-        cmd = ["claude", "plugin", "update", plugin.full_plugin_id]
+        cmd = [
+            "claude",
+            "plugin",
+            "update",
+            plugin.full_plugin_id,
+            "--scope",
+            scope,
+        ]
         self._run_plugin_command(cmd, f"Updated {plugin.name}")
 
     def on_marketplace_modal_modal_closed(

@@ -7,11 +7,49 @@ from textual.binding import Binding
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static, Tree
+from textual.widgets._tree import TreeNode
 
 from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.helpers.rendering import format_keybinding
+
+
+class _WrappingTree(Tree[MarketplacePlugin | Marketplace | None]):
+    """Tree with wrapping cursor navigation."""
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down, wrapping to first node at the end."""
+        cursor = self.cursor_node
+        if cursor is not None:
+            last = self._get_last_visible()
+            if last is not None and cursor == last:
+                first = self.root.children[0] if self.root.children else None
+                if first:
+                    self.move_cursor(first)
+                    return
+        super().action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up, wrapping to last node at the top."""
+        cursor = self.cursor_node
+        first = self.root.children[0] if self.root.children else None
+        if cursor is not None and first is not None and cursor == first:
+            last = self._get_last_visible()
+            if last:
+                self.move_cursor(last)
+                return
+        super().action_cursor_up()
+
+    def _get_last_visible(
+        self,
+    ) -> TreeNode[MarketplacePlugin | Marketplace | None] | None:
+        if not self.root.children:
+            return None
+        last_root = self.root.children[-1]
+        if last_root.is_expanded and last_root.children:
+            return last_root.children[-1]
+        return last_root
 
 
 class MarketplaceModal(Widget):
@@ -37,6 +75,10 @@ class MarketplaceModal(Widget):
         Binding("L", "expand_all", "Expand All", show=False),
         Binding("H", "collapse_all", "Collapse All", show=False),
         Binding("A", "add_marketplace", "Add Marketplace", show=False),
+        Binding("s", "toggle_scope_view", "Scope", show=False),
+        Binding("1", "select_scope_user", "User", show=False),
+        Binding("2", "select_scope_project", "Project", show=False),
+        Binding("3", "select_scope_local", "Local", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -155,6 +197,14 @@ class MarketplaceModal(Widget):
             self.marketplace = marketplace
             super().__init__()
 
+    class PluginInstallWithScope(Message):
+        """Emitted when a plugin install with specific scope is requested."""
+
+        def __init__(self, plugin: MarketplacePlugin, scope: str) -> None:
+            self.plugin = plugin
+            self.scope = scope
+            super().__init__()
+
     class MarketplaceAddRequest(Message):
         """Emitted when user wants to add a marketplace."""
 
@@ -170,14 +220,17 @@ class MarketplaceModal(Widget):
         self._loader: MarketplaceLoader | None = None
         self._marketplaces: list[Marketplace] = []
         self._marketplace_order: list[str] = []
-        self._tree: Tree[MarketplacePlugin | Marketplace | None] | None = None
+        self._tree: _WrappingTree | None = None
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
         self._installed_only_filter: bool = False
         self._auto_collapse: bool = True
+        self._scope_view: str = "user"
+        self._scope_selection_mode: bool = False
+        self._scope_selection_plugin: MarketplacePlugin | None = None
 
     def compose(self) -> ComposeResult:
-        tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
+        tree: _WrappingTree = _WrappingTree(
             "Marketplace Browser", id="marketplace-tree"
         )
         tree.show_root = False
@@ -203,11 +256,13 @@ class MarketplaceModal(Widget):
         search_toggle = format_keybinding(
             "/", "Search", active=bool(self._filter_query)
         )
+        scope_label = "User" if self._scope_view == "user" else "Project"
+        scope_toggle = format_keybinding("s", scope_label, active=True)
 
         sep = "[dim]│[/]"
         nav = "[bold]L[/] Expand  [bold]H[/] Collapse"
         add_mp = "[bold]A[/] Add Marketplace"
-        filters = f"{installed_toggle}  {search_toggle}"
+        filters = f"{scope_toggle}  {installed_toggle}  {search_toggle}"
         close = "[bold]Esc[/] Close"
 
         if isinstance(data, MarketplacePlugin):
@@ -244,6 +299,8 @@ class MarketplaceModal(Widget):
             self._installed_only_filter = False
             self._auto_collapse = auto_collapse
             self._marketplace_order = []
+            self._scope_selection_mode = False
+            self._scope_selection_plugin = None
             self._load_data()
             self._build_tree()
             self._select_first_node()
@@ -397,8 +454,19 @@ class MarketplaceModal(Widget):
         """Render a plugin node label."""
         if plugin.is_installed:
             status_icon = "[green]I[/]" if plugin.is_enabled else "[yellow]D[/]"
+        elif plugin.installed_scopes:
+            status_icon = "[dim]I[/]"
         else:
             status_icon = "[ ]"
+
+        scope_badge = ""
+        if plugin.installed_scopes:
+            scope_labels = {"user": "U", "project": "P", "local": "L"}
+            hide_scope = self._scope_view if self._scope_view == "user" else None
+            visible = [s for s in sorted(plugin.installed_scopes) if s != hide_scope]
+            if visible:
+                badges = "".join(scope_labels.get(s, "?") for s in visible)
+                scope_badge = f" [dim][{badges}][/]"
 
         version_display = ""
         if plugin.is_installed and plugin.installed_version:
@@ -417,11 +485,13 @@ class MarketplaceModal(Widget):
         if len(desc) > max_desc_len:
             desc = desc[: max_desc_len - 3] + "..."
 
-        return f"{status_icon} {plugin.name}{version_display}{desc}"
+        return f"{status_icon} {plugin.name}{scope_badge}{version_display}{desc}"
 
     def action_close_or_cancel(self) -> None:
         """Close filter input or modal."""
-        if self._filter_input and self._filter_input.is_visible:
+        if self._scope_selection_mode:
+            self._exit_scope_selection()
+        elif self._filter_input and self._filter_input.is_visible:
             self._filter_input.action_cancel()
         else:
             self.hide()
@@ -429,11 +499,15 @@ class MarketplaceModal(Widget):
 
     def action_search(self) -> None:
         """Show the filter input."""
+        if self._scope_selection_mode:
+            return
         if self._filter_input:
             self._filter_input.show()
 
     def action_toggle_installed_filter(self) -> None:
         """Toggle installed-only filter."""
+        if self._scope_selection_mode:
+            return
         self._installed_only_filter = not self._installed_only_filter
         self._build_tree()
         self._update_footer_for_current_selection()
@@ -474,7 +548,7 @@ class MarketplaceModal(Widget):
 
     def action_toggle_plugin(self) -> None:
         """Toggle or install the selected plugin."""
-        if not self._tree:
+        if self._scope_selection_mode or not self._tree:
             return
 
         node = self._tree.cursor_node
@@ -483,11 +557,16 @@ class MarketplaceModal(Widget):
 
         data = node.data
         if isinstance(data, MarketplacePlugin):
-            self.post_message(self.PluginToggled(data))
+            if not data.is_installed:
+                self._scope_selection_mode = True
+                self._scope_selection_plugin = data
+                self._update_footer_scope_selection()
+            else:
+                self.post_message(self.PluginToggled(data))
 
     def action_uninstall_plugin(self) -> None:
         """Uninstall the selected plugin or remove the selected marketplace."""
-        if not self._tree:
+        if self._scope_selection_mode or not self._tree:
             return
 
         node = self._tree.cursor_node
@@ -502,7 +581,7 @@ class MarketplaceModal(Widget):
 
     def action_open_plugin_folder(self) -> None:
         """Open the selected plugin's folder."""
-        if not self._tree:
+        if self._scope_selection_mode or not self._tree:
             return
 
         node = self._tree.cursor_node
@@ -515,7 +594,7 @@ class MarketplaceModal(Widget):
 
     def action_open_source(self) -> None:
         """Open the selected item's source location."""
-        if not self._tree:
+        if self._scope_selection_mode or not self._tree:
             return
 
         node = self._tree.cursor_node
@@ -532,7 +611,7 @@ class MarketplaceModal(Widget):
 
     def action_update_marketplace(self) -> None:
         """Update the selected marketplace or plugin."""
-        if not self._tree:
+        if self._scope_selection_mode or not self._tree:
             return
 
         node = self._tree.cursor_node
@@ -547,7 +626,7 @@ class MarketplaceModal(Widget):
 
     def action_preview_plugin(self) -> None:
         """Preview the selected plugin's customizations."""
-        if not self._tree:
+        if self._scope_selection_mode or not self._tree:
             return
 
         node = self._tree.cursor_node
@@ -560,15 +639,21 @@ class MarketplaceModal(Widget):
 
     def action_add_marketplace(self) -> None:
         """Request to add a new marketplace."""
+        if self._scope_selection_mode:
+            return
         self.post_message(self.MarketplaceAddRequest())
 
     def action_cursor_down(self) -> None:
         """Move cursor down in tree."""
+        if self._scope_selection_mode:
+            return
         if self._tree:
             self._tree.action_cursor_down()
 
     def action_cursor_up(self) -> None:
         """Move cursor up in tree."""
+        if self._scope_selection_mode:
+            return
         if self._tree:
             self._tree.action_cursor_up()
 
@@ -598,6 +683,54 @@ class MarketplaceModal(Widget):
         if self._tree:
             for node in self._tree.root.children:
                 node.collapse()
+
+    def action_toggle_scope_view(self) -> None:
+        """Toggle between user and project scope views."""
+        if self._scope_selection_mode:
+            return
+        self._scope_view = "project" if self._scope_view == "user" else "user"
+        if self._loader:
+            self._loader.display_scope = self._scope_view
+            self._loader._marketplaces_cache = None
+        self._load_data()
+        self._build_tree()
+        self._select_first_node()
+
+    def action_select_scope_user(self) -> None:
+        """Select user scope for install."""
+        self._select_scope("user")
+
+    def action_select_scope_project(self) -> None:
+        """Select project scope for install."""
+        self._select_scope("project")
+
+    def action_select_scope_local(self) -> None:
+        """Select local scope for install."""
+        self._select_scope("local")
+
+    def _select_scope(self, scope: str) -> None:
+        """Complete scope selection and emit install message."""
+        if not self._scope_selection_mode or not self._scope_selection_plugin:
+            return
+        plugin = self._scope_selection_plugin
+        self._exit_scope_selection()
+        self.post_message(self.PluginInstallWithScope(plugin, scope))
+
+    def _exit_scope_selection(self) -> None:
+        """Exit scope selection mode and restore normal footer."""
+        self._scope_selection_mode = False
+        self._scope_selection_plugin = None
+        self._update_footer_for_current_selection()
+
+    def _update_footer_scope_selection(self) -> None:
+        """Show scope selection options in footer."""
+        footer = self.query_one("#marketplace-footer", Static)
+        name = self._scope_selection_plugin.name if self._scope_selection_plugin else ""
+        footer.update(
+            f"Install [bold]{name}[/] to: "
+            "[bold]1[/] User  [bold]2[/] Project  [bold]3[/] Local  "
+            "[bold]Esc[/] Cancel"
+        )
 
     def refresh_tree(self) -> None:
         """Refresh the tree after changes, preserving cursor position."""
@@ -643,6 +776,11 @@ class MarketplaceModal(Widget):
     def is_visible(self) -> bool:
         """Check if the modal is visible."""
         return self.has_class("visible")
+
+    @property
+    def scope_view(self) -> str:
+        """Current scope view (user or project)."""
+        return self._scope_view
 
     def focus_tree(self) -> None:
         """Focus the tree widget for keyboard navigation."""
