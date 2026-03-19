@@ -71,7 +71,7 @@ class GitignoreFilter:
             patterns.extend(gitignore_patterns)
 
         if patterns:
-            self._spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+            self._spec = pathspec.PathSpec.from_lines("gitignore", patterns)
 
     def _load_gitignore(self, root: Path) -> list[str]:
         """Load and parse .gitignore file if it exists."""
