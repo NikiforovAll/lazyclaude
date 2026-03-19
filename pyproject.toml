@@ -22,11 +22,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "textual>=0.89.0",
+    "textual>=8.0.0",
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "pyperclip>=1.11.0",
-    "pathspec>=0.12.0",
+    "pathspec>=1.0.0",
 ]
 
 [project.urls]
@@ -35,11 +35,11 @@ Repository = "https://github.com/nikiforovall/lazyclaude"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.0",
     "pytest-asyncio>=0.24.0",
     "pytest-textual-snapshot>=1.0.0",
-    "ruff>=0.8.0",
-    "mypy>=1.13.0",
+    "ruff>=0.15.0",
+    "mypy>=1.19.0",
 ]
 
 [project.scripts]
@@ -105,10 +105,10 @@ disallow_untyped_defs = true
 dev = [
     "mypy>=1.19.0",
     "pre-commit>=4.5.0",
-    "pyfakefs>=5.10.2",
+    "pyfakefs>=6.0.0",
     "pytest>=9.0.1",
     "pytest-asyncio>=1.3.0",
-    "ruff>=0.14.8",
-    "types-pyperclip>=1.9.0.20250801",
+    "ruff>=0.15.0",
+    "types-pyperclip>=1.11.0.20260216",
     "types-pyyaml>=6.0.12.20250915",
 ]
