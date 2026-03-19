@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LazyClaude — Browse your Claude Code setup, without leaving the terminal</title>
+  <meta name="description" content="A lazygit-style TUI for visualizing Claude Code customizations. Slash commands, subagents, skills, memory, MCPs, and hooks — all in one place.">
+  <meta property="og:title" content="LazyClaude">
+  <meta property="og:description" content="Browse your Claude Code setup, without leaving the terminal. A lazygit-style TUI for slash commands, subagents, skills, memory, MCPs, and hooks.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://nikiforovall.github.io/lazyclaude/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/NikiforovAll/lazyclaude/main/assets/demo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f0f0f'/%3E%3Ccircle cx='16' cy='17' r='7' fill='%23d4845a'/%3E%3Cline x1='16' y1='10' x2='16' y2='4' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='10' y1='12' x2='7' y2='8' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='22' y1='12' x2='25' y2='8' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='9' y1='17' x2='4' y2='17' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='23' y1='17' x2='28' y2='17' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='10' y1='22' x2='7' y2='26' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='22' y1='22' x2='25' y2='26' stroke='%23d4845a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --bg-surface: #1a1a1b;
+      --bg-elevated: #222223;
+      --text: #e8e6e3;
+      --text-secondary: #9a9894;
+      --text-muted: #5a5856;
+      --accent: #d4845a;
+      --accent-light: #e8a07a;
+      --accent-dim: rgba(212, 132, 90, 0.1);
+      --accent-glow: rgba(212, 132, 90, 0.2);
+      --navy: #3d5a80;
+      --navy-dim: rgba(61, 90, 128, 0.15);
+      --border: #2a2a2b;
+      --border-light: #333334;
+      --mono: 'JetBrains Mono', monospace;
+      --serif: 'Instrument Serif', serif;
+      --max-w: 1280px;
+      --section-gap: 140px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--mono);
+      font-size: 15px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Grain texture */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+      z-index: 9999;
+    }
+
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 48px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* #region NAV */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(15, 15, 15, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      transition: box-shadow 0.3s;
+    }
+    nav.scrolled { box-shadow: 0 1px 12px rgba(0,0,0,0.4); }
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .nav-brand img { width: 30px; height: 30px; border-radius: 6px; }
+    .nav-brand span {
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -0.02em;
+    }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .nav-gh {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .nav-gh:hover { border-color: var(--accent); background: var(--accent-dim); }
+    .nav-gh svg { width: 16px; height: 16px; }
+    /* #endregion */
+
+    /* #region HERO */
+    .hero {
+      padding-top: 160px;
+      padding-bottom: var(--section-gap);
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(212, 132, 90, 0.2);
+      border-radius: 100px;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 500;
+      margin-bottom: 40px;
+      letter-spacing: 0.02em;
+    }
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .hero h1 {
+      font-family: var(--serif);
+      font-size: clamp(42px, 6vw, 76px);
+      font-weight: 400;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 28px;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .hero-sub {
+      font-size: 15px;
+      color: var(--text-secondary);
+      max-width: 580px;
+      margin: 0 auto 48px;
+      line-height: 1.7;
+    }
+
+    /* Install block */
+    .install-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 64px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    }
+    .install-block code {
+      display: block;
+      padding: 14px 20px 14px 24px;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--text);
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+    .install-block code .prompt { color: var(--accent-light); }
+    .install-copy {
+      padding: 14px 18px;
+      background: none;
+      border: none;
+      border-left: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+      display: flex;
+      align-items: center;
+    }
+    .install-copy:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .install-copy svg { width: 16px; height: 16px; }
+    .install-copy.copied { color: #3ecf8e; }
+
+    /* Hero screenshot */
+    .hero-screenshot {
+      max-width: 960px;
+      margin: 0 auto;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow:
+        0 8px 48px rgba(0,0,0,0.5),
+        0 2px 8px rgba(0,0,0,0.3);
+      transform: perspective(1200px) rotateX(2deg);
+      transition: transform 0.4s ease;
+    }
+    .hero-screenshot:hover { transform: perspective(1200px) rotateX(0deg); }
+    .hero-screenshot img {
+      width: 100%;
+      display: block;
+    }
+    /* #endregion */
+
+    /* #region FEATURES */
+    .features { padding-bottom: var(--section-gap); }
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--serif);
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 400;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 64px;
+      line-height: 1.15;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .feature-card {
+      padding: 28px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+    }
+    .feature-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 24px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-dim);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+    .feature-card h3 {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .feature-card kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent-light);
+    }
+    /* #endregion */
+
+    /* #region WORKFLOWS */
+    .workflows { padding-bottom: var(--section-gap); }
+    .workflow-row {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 64px;
+      align-items: center;
+      margin-bottom: 100px;
+    }
+    .workflow-row:last-child { margin-bottom: 0; }
+    .workflow-row.reverse .workflow-text { order: 2; }
+    .workflow-row.reverse .workflow-media { order: 1; }
+    .workflow-text .workflow-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-light);
+      font-family: var(--serif);
+      font-size: 15px;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    .workflow-text h3 {
+      font-family: var(--serif);
+      font-size: clamp(24px, 3vw, 32px);
+      font-weight: 400;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+    .workflow-text p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      max-width: 420px;
+    }
+    .workflow-text .workflow-keys {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .workflow-keys kbd {
+      display: inline-block;
+      padding: 4px 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-light);
+      border-radius: 5px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent-light);
+    }
+    .workflow-media {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+    }
+    .workflow-media img {
+      width: 100%;
+      display: block;
+    }
+    /* #endregion */
+
+    /* #region LIGHTBOX */
+    .workflow-media { cursor: pointer; position: relative; }
+    .workflow-media::after {
+      content: '';
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 6px;
+      backdrop-filter: blur(4px);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23e8e6e3' stroke-width='1.5'%3E%3Cpath d='M10 2h4v4'/%3E%3Cpath d='M6 14H2v-4'/%3E%3Cpath d='M14 2L9.5 6.5'/%3E%3Cpath d='M2 14l4.5-4.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    .workflow-media:hover::after { opacity: 1; }
+
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .lightbox.open {
+      opacity: 1;
+      visibility: visible;
+    }
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 12px;
+      box-shadow: 0 16px 64px rgba(0,0,0,0.6);
+      transform: scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .lightbox.open img { transform: scale(1); }
+    .lightbox-close {
+      position: absolute;
+      top: 24px;
+      right: 32px;
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: rgba(255,255,255,0.1);
+      border-radius: 50%;
+      color: var(--text);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,0.2); }
+    /* #endregion */
+
+    /* #region FAQ */
+    .faq { padding-bottom: var(--section-gap); }
+    .faq-list { max-width: 720px; }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+    }
+    .faq-item:first-child { border-top: 1px solid var(--border); }
+    .faq-q {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 20px 0;
+      background: none;
+      border: none;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      gap: 16px;
+    }
+    .faq-q:hover { color: var(--accent); }
+    .faq-chevron {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      transition: transform 0.3s;
+      color: var(--text-muted);
+    }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+    .faq-a {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, padding 0.35s ease;
+    }
+    .faq-item.open .faq-a {
+      max-height: 200px;
+      padding-bottom: 20px;
+    }
+    .faq-a p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    /* #endregion */
+
+    /* #region FOOTER */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+    footer .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .footer-left a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-left a:hover { color: var(--accent); }
+    .footer-right a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+    .footer-right a:hover { color: var(--accent); }
+    /* #endregion */
+
+    /* #region ANIMATIONS */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .fade-in.delay-1 { transition-delay: 0.1s; }
+    .fade-in.delay-2 { transition-delay: 0.2s; }
+    .fade-in.delay-3 { transition-delay: 0.3s; }
+    .fade-in.delay-4 { transition-delay: 0.4s; }
+    .fade-in.delay-5 { transition-delay: 0.5s; }
+    /* #endregion */
+
+    /* #region RESPONSIVE */
+    @media (max-width: 768px) {
+      :root { --section-gap: 80px; }
+      .container { padding: 0 20px; }
+      .hero { padding-top: 120px; }
+      .hero-sub { font-size: 14px; }
+      .features-grid { grid-template-columns: 1fr; gap: 16px; }
+      .workflow-row { grid-template-columns: 1fr; gap: 32px; }
+      .workflow-row.reverse .workflow-text { order: 1; }
+      .workflow-row.reverse .workflow-media { order: 2; }
+      .workflow-text p { max-width: 100%; }
+      .nav-links a:not(.nav-gh) { display: none; }
+      .hero-screenshot { transform: none; }
+      .hero-screenshot:hover { transform: none; }
+      .install-block code { font-size: 12px; padding: 12px 14px; }
+      footer .container { flex-direction: column; gap: 16px; text-align: center; }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .workflow-row { gap: 32px; }
+    }
+    /* #endregion */
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="container">
+      <a href="#" class="nav-brand">
+        <img src="../assets/logo.png" alt="LazyClaude logo">
+        <span>LazyClaude</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://github.com/NikiforovAll/lazyclaude" class="nav-gh" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="fade-in">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          Open source &middot; MIT
+        </div>
+      </div>
+      <h1 class="fade-in delay-1">Browse your Claude Code setup,<br><em>without leaving the terminal</em></h1>
+      <p class="hero-sub fade-in delay-2">A lazygit-style TUI for visualizing slash commands, subagents, skills, memory, MCPs, and hooks. Zero config. One command.</p>
+      <div class="fade-in delay-3">
+        <div class="install-block">
+          <code><span class="prompt">$</span> uvx lazyclaude</code>
+          <button class="install-copy" onclick="copyInstall(this)" title="Copy to clipboard">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="hero-screenshot fade-in delay-4">
+        <img src="../assets/demo.png" alt="LazyClaude TUI interface">
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="container">
+      <p class="section-label fade-in">Features</p>
+      <h2 class="section-title fade-in">Everything Claude Code,<br>in one terminal view</h2>
+      <div class="features-grid">
+        <div class="feature-card fade-in">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="7" height="16" rx="1.5"/><rect x="10" y="2" width="9" height="16" rx="1.5"/><line x1="10" y1="10" x2="19" y2="10"/></svg>
+          </div>
+          <h3>Multi-panel layout</h3>
+          <p>Six panels for every customization type: commands, subagents, skills, memory, MCPs, and hooks.</p>
+        </div>
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h1"/><path d="M12 7h1"/><path d="M7 11h6"/></svg>
+          </div>
+          <h3>Keyboard-first</h3>
+          <p>Vim-like navigation with <kbd>j</kbd>/<kbd>k</kbd>, panel switching with <kbd>1</kbd>-<kbd>6</kbd>, and single-key actions.</p>
+        </div>
+        <div class="feature-card fade-in delay-2">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M6 10h8"/><path d="M10 6v8"/></svg>
+          </div>
+          <h3>Marketplace browser</h3>
+          <p>Browse, install, and manage plugins from community marketplaces. Press <kbd>M</kbd> to explore.</p>
+        </div>
+        <div class="feature-card fade-in delay-3">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h4"/><path d="M12 10h4"/><circle cx="10" cy="10" r="2"/></svg>
+          </div>
+          <h3>Copy &amp; move</h3>
+          <p>Move customizations between User, Project, and Plugin levels with <kbd>c</kbd> and <kbd>m</kbd>.</p>
+        </div>
+        <div class="feature-card fade-in delay-4">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h14"/><path d="M3 8h10"/><path d="M3 12h14"/><path d="M3 16h8"/></svg>
+          </div>
+          <h3>Plugin preview</h3>
+          <p>Explore plugin contents before installing. See what you're getting with <kbd>p</kbd>.</p>
+        </div>
+        <div class="feature-card fade-in delay-5">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 8h16"/><circle cx="14" cy="12" r="1.5"/></svg>
+          </div>
+          <h3>Content &amp; metadata</h3>
+          <p>Toggle between rendered content and frontmatter metadata with <kbd>[</kbd> and <kbd>]</kbd>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WORKFLOWS -->
+  <section class="workflows" id="workflows">
+    <div class="container">
+      <p class="section-label fade-in">Workflows</p>
+      <h2 class="section-title fade-in">See it in action</h2>
+
+      <!-- Workflow 1: First Launch -->
+      <div class="workflow-row fade-in">
+        <div class="workflow-text">
+          <div class="workflow-num">1</div>
+          <h3>First launch</h3>
+          <p>Install with one command and immediately explore all your Claude Code customizations. Navigate panels with vim keys, switch with number keys, toggle views instantly.</p>
+          <div class="workflow-keys">
+            <kbd>j</kbd><kbd>k</kbd><kbd>1-6</kbd><kbd>[ ]</kbd>
+          </div>
+        </div>
+        <div class="workflow-media">
+          <img src="assets/first-launch.gif" alt="First launch demo" loading="lazy">
+        </div>
+      </div>
+
+      <!-- Workflow 2: Filter by Level -->
+      <div class="workflow-row reverse fade-in">
+        <div class="workflow-text">
+          <div class="workflow-num">2</div>
+          <h3>Filter by level</h3>
+          <p>Instantly filter customizations by scope. See only User, Project, or Plugin configurations with a single keystroke. Understand what lives where.</p>
+          <div class="workflow-keys">
+            <kbd>a</kbd><kbd>u</kbd><kbd>p</kbd><kbd>P</kbd>
+          </div>
+        </div>
+        <div class="workflow-media">
+          <img src="assets/demo-filter-workflow.gif" alt="Filter workflow demo" loading="lazy">
+        </div>
+      </div>
+
+      <!-- Workflow 3: Marketplace -->
+      <div class="workflow-row fade-in">
+        <div class="workflow-text">
+          <div class="workflow-num">3</div>
+          <h3>Browse marketplace</h3>
+          <p>Open the marketplace browser to discover community plugins. Install with one key, manage enabled/disabled state, and uninstall what you don't need.</p>
+          <div class="workflow-keys">
+            <kbd>M</kbd><kbd>i</kbd><kbd>d</kbd><kbd>t</kbd>
+          </div>
+        </div>
+        <div class="workflow-media">
+          <img src="assets/demo-marketplace-install.gif" alt="Marketplace install demo" loading="lazy">
+        </div>
+      </div>
+
+      <!-- Workflow 4: Preview -->
+      <div class="workflow-row reverse fade-in">
+        <div class="workflow-text">
+          <div class="workflow-num">4</div>
+          <h3>Preview before installing</h3>
+          <p>Explore what a plugin provides before committing. Browse its slash commands, subagents, skills, and more — right from the marketplace.</p>
+          <div class="workflow-keys">
+            <kbd>p</kbd><kbd>Esc</kbd>
+          </div>
+        </div>
+        <div class="workflow-media">
+          <img src="assets/demo-preview-plugin.gif" alt="Preview plugin demo" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq" id="faq">
+    <div class="container">
+      <p class="section-label fade-in">FAQ</p>
+      <h2 class="section-title fade-in">Common questions</h2>
+      <div class="faq-list">
+        <div class="faq-item fade-in">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            Does LazyClaude modify my Claude Code config?
+            <svg class="faq-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 8l5 5 5-5"/></svg>
+          </button>
+          <div class="faq-a"><p>Browsing is read-only. Copy and move operations are explicit actions that you trigger with <code>c</code> or <code>m</code> — nothing changes without your input.</p></div>
+        </div>
+        <div class="faq-item fade-in delay-1">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            What customization types does it support?
+            <svg class="faq-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 8l5 5 5-5"/></svg>
+          </button>
+          <div class="faq-a"><p>All six: slash commands, subagents, skills, memory files, MCPs, and hooks. Each gets its own panel in the sidebar.</p></div>
+        </div>
+        <div class="faq-item fade-in delay-2">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            Do I need Claude Code installed?
+            <svg class="faq-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 8l5 5 5-5"/></svg>
+          </button>
+          <div class="faq-a"><p>Yes. LazyClaude reads from <code>~/.claude/</code> and <code>./.claude/</code> directories. It discovers customizations from User, Project, and Plugin levels.</p></div>
+        </div>
+        <div class="faq-item fade-in delay-3">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            Can I install plugins from it?
+            <svg class="faq-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 8l5 5 5-5"/></svg>
+          </button>
+          <div class="faq-a"><p>Yes. Press <code>M</code> to open the marketplace browser. You can browse, preview, install, enable/disable, and uninstall plugins — all from the keyboard.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIGHTBOX -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightbox-img" src="" alt="">
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="footer-left">
+        <span>MIT License</span>
+        <a href="https://pypi.org/project/lazyclaude/" target="_blank" rel="noopener">PyPI</a>
+        <a href="https://github.com/NikiforovAll/lazyclaude" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="footer-right">
+        <a href="https://github.com/NikiforovAll" target="_blank" rel="noopener">Built by NikiforovAll</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const nav = document.querySelector('nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 10);
+    }, { passive: true });
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+    function copyInstall(btn) {
+      navigator.clipboard.writeText('uvx lazyclaude').then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8.5l3 3 7-7"/></svg>';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>';
+        }, 2000);
+      });
+    }
+
+    document.querySelectorAll('.workflow-media').forEach(el => {
+      el.addEventListener('click', () => {
+        const img = el.querySelector('img');
+        const lb = document.getElementById('lightbox');
+        document.getElementById('lightbox-img').src = img.src;
+        lb.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+
+    function closeLightbox() {
+      const lb = document.getElementById('lightbox');
+      lb.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+    });
+
+    function toggleFaq(btn) {
+      const item = btn.parentElement;
+      const wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    }
+  </script>
+
+</body>
+</html>
